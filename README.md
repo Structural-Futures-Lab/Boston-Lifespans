@@ -192,21 +192,6 @@ GitHub Pages
 # Navigate to https://structural-futures-lab.github.io/Boston-Lifespans/
 ```
 
-### Data Processing (Optional)
-
-To regenerate the data file from source:
-
-```bash
-# Install dependencies
-pip install pandas numpy geopandas pyogrio
-
-# Ensure source files are present
-# ma_structures_lifespan_dash.gpkg
-# Boston_Zoning_Subdistricts.geojson
-
-# Run the preprocessor
-python preprocessor.py
-```
 
 ## Usage Guide
 
