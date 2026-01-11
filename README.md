@@ -50,7 +50,7 @@ This dashboard visualizes and analyzes building demolition data from the Greater
 - Open/Closed status badges for each category
 - Total counts with status distribution
 
-#### 3. **Zoning District Deep Dive** *(New Feature)*
+#### 3. **Zoning District Deep Dive**
 - **District Selection**: Dropdown menu and clickable overview table
 - **Interactive Zoning Map**: Leaflet map displaying RAZE points within selected district
 - **District Statistics**: Average demolished lifespan, RAZE count, average current building age, total building count
