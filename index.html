@@ -448,6 +448,78 @@
         #zoningOverviewTable tr:hover { background: #f1f8ff; cursor: pointer; }
         .badge-container { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
 
+
+        #global-tooltip {
+        position: fixed; 
+        z-index: 99999;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #333;
+        padding: 8px 12px;
+        border-radius: 4px;
+        pointer-events: none; 
+        display: none; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        font-size: 13px;
+        max-width: 250px;
+        transform: translate(15px, 15px); 
+    }
+
+    #global-popup {
+        position: fixed;
+        z-index: 100000; 
+        background: white;
+        padding: 0;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        display: none;
+        min-width: 320px;
+        max-width: 400px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid #ccc;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .popup-header {
+        background: #f8f9fa;
+        padding: 10px 15px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .popup-close-btn {
+        cursor: pointer;
+        font-size: 20px;
+        color: #999;
+        background: none;
+        border: none;
+        line-height: 1;
+    }
+    .popup-close-btn:hover { color: #333; }
+
+    .popup-body {
+        padding: 15px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    #global-popup-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.3);
+        z-index: 99998;
+        display: none;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translate(-50%, -45%); }
+        to { opacity: 1; transform: translate(-50%, -50%); }
+    }
+
     </style>
 </head>
 <body>
@@ -2405,23 +2477,19 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
         function updateZoningDeepDive() {
             const zoneName = document.getElementById('zoningDistrictFilter').value;
             if (!zoneName || !currentData.zoning_district_stats[zoneName]) return;
-            
+
             const d = currentData.zoning_district_stats[zoneName];
 
-            // Update text stats
             document.getElementById('zoneAvgLifespan').innerText = d.avg_raze_lifespan.toFixed(1) + ' yrs';
             document.getElementById('zoneAvgAge').innerText = d.avg_current_age.toFixed(1) + ' yrs';
             document.getElementById('zoneRazeCount').innerText = (d.count_raze || 0).toLocaleString();
             document.getElementById('zoneTotalCount').innerText = (d.count_total || 0).toLocaleString();
 
-            // Update Map (Polygon & Points)
             if (zoningDistrictLayer) zoningDeepDiveMap.removeLayer(zoningDistrictLayer);
             if (zoningRazePointLayer) zoningDeepDiveMap.removeLayer(zoningRazePointLayer);
 
             if (zoneName === 'All Boston') {
-                // For All Boston, zoom out and show all zoning overlays
                 zoningDeepDiveMap.setView([42.3601, -71.0589], 11);
-                
                 if (globalZoningGeoJSON) {
                     zoningDistrictLayer = L.geoJSON(globalZoningGeoJSON, {
                         style: {
@@ -2462,18 +2530,15 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 'P': 'Pier', 'I': 'Pile', 'F': 'Fill', 'W': 'Solid Wall'
             };
 
+            const globalPopup = document.getElementById('global-popup');
+            const globalPopupOverlay = document.getElementById('global-popup-overlay');
+            const globalPopupContent = document.getElementById('global-popup-content');
+
             const markers = d.positive_raze_points.map(p => {
                 const rawFnd = p.foundation;
                 const fndLabel = foundationMap[rawFnd] ? foundationMap[rawFnd] : (rawFnd || 'Unknown');
 
-                return L.circleMarker([p.lat, p.lng], {
-                    radius: 4,
-                    fillColor: colors.RAZE,
-                    color: borderColors.RAZE,
-                    weight: 1,
-                    opacity: 0.6,
-                    fillOpacity: 1
-                }).bindTooltip(`
+                const tooltipContent = `
                     <div style="text-align:left; font-size:13px;">
                         <strong>Type:</strong> RAZE<br>
                         <strong>Lifespan:</strong> ${p.lifespan} yrs<br>
@@ -2482,12 +2547,52 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                         <strong>Material:</strong> ${p.material}<br>
                         <strong>Foundation:</strong> ${fndLabel}
                     </div>
-                `, { direction: 'top' });
+                `;
+
+                const popupHTML = `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">BUILD ID:</td><td style="text-align:right;">${p.build_id || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Year Built:</td><td style="text-align:right;">${p.year_built}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Demolition Date:</td><td style="text-align:right;">${p.demo_date || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Type:</td><td style="text-align:right;">${p.demo_type || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Status:</td><td style="text-align:right;">${p.demo_status_raw || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Material:</td><td style="text-align:right;">${p.material_desc || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Foundation:</td><td style="text-align:right;">${p.foundation_raw || 'N/A'}</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Est GFA:</td><td style="text-align:right;">${p.gfa ? p.gfa.toLocaleString() : '0'} m²</td></tr>
+                        <tr style="border-bottom: 1px solid #eee;"><td style="font-weight:600; padding: 6px 0; color:#666;">Occ Class:</td><td style="text-align:right;">${p.occ_cls || 'N/A'}</td></tr>
+                    </table>
+                    <div style="margin-top: 15px; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #eee; font-size: 12px;">
+                        <span style="font-weight:600; color:#666; display:block; margin-bottom:4px;">Comments:</span>
+                        <span style="font-style: italic; color: #555;">${p.comments || 'None'}</span>
+                    </div>
+                `;
+
+                const marker = L.circleMarker([p.lat, p.lng], {
+                    radius: 4,
+                    fillColor: colors.RAZE,
+                    color: borderColors.RAZE,
+                    weight: 1,
+                    opacity: 0.6,
+                    fillOpacity: 1
+                });
+
+                marker.bindTooltip(tooltipContent, {
+                    direction: 'top',
+                    offset: [0, -5]
+                });
+
+                marker.on('click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    globalPopupContent.innerHTML = popupHTML;
+                    globalPopupOverlay.style.display = 'block';
+                    globalPopup.style.display = 'block';
+                });
+
+                return marker;
             });
-            
+
             zoningRazePointLayer = L.layerGroup(markers).addTo(zoningDeepDiveMap);
 
-            // Update Bar Charts
             if (charts.zoningDemolished) charts.zoningDemolished.destroy();
             const ctxDem = document.getElementById('zoningDemolishedAgeChart').getContext('2d');
             charts.zoningDemolished = new Chart(ctxDem, {
@@ -2503,10 +2608,30 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
                     scales: {
-                        x: { title: { display: true, text: 'Lifespan (Years)', font: { size: 11 } } },
-                        y: { title: { display: true, text: 'Count', font: { size: 11 } } }
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Lifespan (Years)',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Count',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -2526,25 +2651,41 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
                     scales: {
-                        x: { title: { display: true, text: 'Age (Years)', font: { size: 11 } } },
-                        y: { title: { display: true, text: 'Count', font: { size: 11 } } }
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Age (Years)',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Count',
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
                     }
                 }
             });
 
-            // Get bin size
             const binSize = document.getElementById('heatmapBinSize').value;
             const binKey = `bin_${binSize}`;
-
-            // Get metric settings
             const metricInput = document.querySelector('input[name="deepDiveMetric"]:checked');
             const metricVal = metricInput ? metricInput.value : 'count';
             const isPct = metricVal.includes('_pct');
             const baseMetric = metricVal.replace('_pct', '');
 
-            // Select data based on currentCategory
             let demoHeatmapData, currentHeatmapData;
             let demoBoxplotData, currentBoxplotData;
             let demoStatsData, currentStatsData;
@@ -2573,32 +2714,26 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             }
 
             const allCategories = categoryOrders[currentCategory];
-
             const demoCutoff = demoHeatmapData?.cutoff || 240;
             const currentCutoff = currentHeatmapData?.cutoff || 240;
             const binSizeNum = parseInt(binSize);
 
-            // Render Demolished Heatmap
             const demoCountData = (demoHeatmapData && demoHeatmapData['count']) ? demoHeatmapData['count'] : {};
             const demoDisplayData = (demoHeatmapData && demoHeatmapData[baseMetric]) ? demoHeatmapData[baseMetric] : {};
             const demoAvgData = (demoHeatmapData && demoHeatmapData['avg']) ? demoHeatmapData['avg'] : {};
             renderZoneHeatmap(demoDisplayData, demoCountData, 'zoningHeatmapDemo', isPct, allCategories, demoAvgData, demoCutoff, binSizeNum);
 
-            // Render Current Heatmap
             const currentCountData = (currentHeatmapData && currentHeatmapData['count']) ? currentHeatmapData['count'] : {};
             const currentDisplayData = (currentHeatmapData && currentHeatmapData[baseMetric]) ? currentHeatmapData[baseMetric] : {};
             const currentAvgData = (currentHeatmapData && currentHeatmapData['avg']) ? currentHeatmapData['avg'] : {};
             renderZoneHeatmap(currentDisplayData, currentCountData, 'zoningHeatmapCurrent', isPct, allCategories, currentAvgData, currentCutoff, binSizeNum);
 
-            // Render Boxplots
             renderBoxplot('boxplotDemoChart', demoBoxplotData || {}, allCategories);
             renderBoxplot('boxplotCurrentChart', currentBoxplotData || {}, allCategories);
 
-            // Render Statistics Tables
             renderDemoStatsTable(demoStatsData || [], allCategories);
             renderCurrentStatsTable(currentStatsData || [], allCategories);
         }
-
         function renderBoxplot(canvasId, data, allCategories = null) {
             if (charts[canvasId]) charts[canvasId].destroy();
             const canvas = document.getElementById(canvasId);
@@ -2683,8 +2818,23 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
         }
 
 
-
         window.addEventListener('DOMContentLoaded', loadDataFromJSON);
+
+        function closeGlobalPopup() {
+            document.getElementById('global-popup').style.display = 'none';
+            document.getElementById('global-popup-overlay').style.display = 'none';
+        }
     </script>
+
+    <div id="global-popup-overlay" onclick="closeGlobalPopup()"></div>
+
+    <div id="global-popup">
+        <div class="popup-header">
+            <h3 style="margin:0; font-size:16px; color:#2c3e50;">Building Details</h3>
+            <button class="popup-close-btn" onclick="closeGlobalPopup()">×</button>
+        </div>
+        <div class="popup-body" id="global-popup-content">
+            </div>
+    </div>
 </body>
 </html>

@@ -342,6 +342,9 @@ def process_demolition_data(
         points = []
         for _, r in r_pos.iterrows():
             if pd.notna(r['LATITUDE']):
+                demo_date = r.get('DEMOLITION_DATE')
+                demo_date_str = str(demo_date.date()) if pd.notna(demo_date) else 'N/A'
+
                 points.append({
                     'lat': r['LATITUDE'],
                     'lng': r['LONGITUDE'],
@@ -349,7 +352,17 @@ def process_demolition_data(
                     'status': r['status_norm'],
                     'year_built': int(r['year_built']),
                     'material': str(r['material_group']),
-                    'foundation': str(r.get('foundation_type', 'N/A'))
+                    'foundation': str(r.get('foundation_type', 'N/A')),
+                    'build_id': str(r.get('BUILD_ID', 'N/A')),
+                    'demo_date': demo_date_str,
+                    'demo_type': str(r.get('DEMOLITION_TYPE', 'N/A')),
+                    'demo_status_raw': str(r.get('DEMOLITION_STATUS', 'N/A')),
+                    'material_desc': str(r.get('material_type_desc', 'N/A')),
+                    'foundation_raw': str(r.get('foundation_type', 'N/A')),
+                    'gfa': float(r.get('Est GFA sqmeters', 0)),
+                    'occ_cls': str(r.get('OCC_CLS', 'N/A')),
+                    'comments': str(r.get('DEMOLITION_COMMENTS', '')) if pd.notna(
+                        r.get('DEMOLITION_COMMENTS')) else 'None'
                 })
 
         zoning_stats[str(dist)] = {
@@ -393,11 +406,23 @@ def process_demolition_data(
     all_points = []
     for _, r in all_raze_pos.iterrows():
         if pd.notna(r['LATITUDE']):
+            demo_date = r.get('DEMOLITION_DATE')
+            demo_date_str = str(demo_date.date()) if pd.notna(demo_date) else 'N/A'
+
             all_points.append({
                 'lat': r['LATITUDE'], 'lng': r['LONGITUDE'],
                 'lifespan': int(r['lifespan']), 'status': r['status_norm'],
                 'year_built': int(r['year_built']), 'material': str(r['material_group']),
-                'foundation': str(r.get('foundation_type', 'N/A'))
+                'foundation': str(r.get('foundation_type', 'N/A')),
+                'build_id': str(r.get('BUILD_ID', 'N/A')),
+                'demo_date': demo_date_str,
+                'demo_type': str(r.get('DEMOLITION_TYPE', 'N/A')),
+                'demo_status_raw': str(r.get('DEMOLITION_STATUS', 'N/A')),
+                'material_desc': str(r.get('material_type_desc', 'N/A')),
+                'foundation_raw': str(r.get('foundation_type', 'N/A')),
+                'gfa': float(r.get('Est GFA sqmeters', 0)),
+                'occ_cls': str(r.get('OCC_CLS', 'N/A')),
+                'comments': str(r.get('DEMOLITION_COMMENTS', '')) if pd.notna(r.get('DEMOLITION_COMMENTS')) else 'None'
             })
 
     zoning_stats['All Boston'] = {
