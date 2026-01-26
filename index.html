@@ -858,6 +858,22 @@
 
             
 
+            <div class="chart-container">
+                <h2 class="chart-title">Construction vs. Demolition Year</h2>
+                <p class="chart-description">X: Year Built | Y: Demolition Year</p>
+                <div style="height: 400px;">
+                    <canvas id="scatterConstDemol"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2 class="chart-title">Lifespan vs. Demolition Year</h2>
+                <p class="chart-description">X: Lifespan (Years) | Y: Demolition Year</p>
+                <div style="height: 400px;">
+                    <canvas id="scatterLifeDemol"></canvas>
+                </div>
+            </div>
+
 
             <div class="chart-container">
                 <h2 class="chart-title">Demolitions by Year</h2>
@@ -1109,11 +1125,8 @@
                 });
 
                 const lifespan = point.lifespan ? point.lifespan + ' yrs' : 'N/A';
-                const mat = point.material || 'Unknown';
-                const fnd = point.foundation || 'Unknown';
                 const yr = point.year_built || 'N/A';
                 const rawFnd = point.foundation;
-                const fndLabel = foundationMap[rawFnd] ? foundationMap[rawFnd] : (rawFnd || 'Unknown');
                 marker.bindTooltip(`
                     <div style="text-align:left; font-size:13px;">
                         <strong>Type:</strong> ${dtype}<br>
@@ -1324,8 +1337,6 @@
             sortedFoundations.sort((a, b) => {
                 const lowerA = a.toLowerCase();
                 const lowerB = b.toLowerCase();
-                if (lowerA === 'unknown') return 1;  
-                if (lowerB === 'unknown') return -1; 
                 return sortTotals[b] - sortTotals[a];
             });
             
@@ -1463,8 +1474,6 @@
             sortedOccs.sort((a, b) => {
                 const lowerA = a.toLowerCase();
                 const lowerB = b.toLowerCase();
-                if (lowerA === 'unknown') return 1;  
-                if (lowerB === 'unknown') return -1; 
                 return sortTotals[b] - sortTotals[a];
             });
             
@@ -1678,6 +1687,7 @@
 
             updateVisualization();
             createYearlyChart(data.yearly_stacked);
+            createScatterPlots(data);
             updateStats('RAZE');
         }
 
@@ -2180,6 +2190,110 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                                     }
                                     return label;
                                 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createScatterPlots(data) {
+            const points = (data.map_points || []).filter(p => {
+                const type = p.type || p.demolition_type;
+                return (type === 'RAZE' && p.lifespan > 0);
+            });
+
+            const constVsDemolData = points.map(p => ({
+                x: p.year_built,
+                y: p.year_built + p.lifespan
+            }));
+
+            const lifeVsDemolData = points.map(p => ({
+                x: p.lifespan,
+                y: p.year_built + p.lifespan
+            }));
+
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return `X: ${ctx.parsed.x}, Y: ${ctx.parsed.y}`;
+                            }
+                        }
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2,
+                        hoverRadius: 5,
+                        backgroundColor: 'rgba(13, 8, 135, 0.4)',
+                        borderColor: 'transparent'
+                    }
+                }
+            };
+
+            const yearTickCallback = function(value) {
+                return value.toString();
+            };
+
+            const ctx1 = document.getElementById('scatterConstDemol').getContext('2d');
+            if (charts.scatterConstDemol) charts.scatterConstDemol.destroy();
+
+            charts.scatterConstDemol = new Chart(ctx1, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Building',
+                        data: constVsDemolData
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Year Built' },
+                            ticks: { 
+                                callback: yearTickCallback,
+                                maxRotation: 45, 
+                                minRotation: 45 
+                            }
+                        },
+                        y: { 
+                            title: { display: true, text: 'Demolition Year' },
+                            ticks: {
+                                callback: yearTickCallback
+                            }
+                        }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('scatterLifeDemol').getContext('2d');
+            if (charts.scatterLifeDemol) charts.scatterLifeDemol.destroy();
+
+            charts.scatterLifeDemol = new Chart(ctx2, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Building',
+                        data: lifeVsDemolData
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Lifespan (Years)' },
+                            beginAtZero: true
+                        },
+                        y: { 
+                            title: { display: true, text: 'Demolition Year' },
+                            ticks: {
+                                callback: yearTickCallback
                             }
                         }
                     }
