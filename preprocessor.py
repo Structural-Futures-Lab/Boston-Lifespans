@@ -76,8 +76,30 @@ def process_demolition_data(
     # ---------------------------------------------------------
     print("3. Cleaning and filtering data...")
 
-    # Ensure numeric year_built
+    # Ensure numeric year_built first (non-numeric values become NaN)
     df['year_built'] = pd.to_numeric(df['year_built'], errors='coerce')
+
+    # --- NEW STRICT FILTERING LOGIC ---
+    print("   Applying strict filtering: Removing rows missing Year Built, Material, or Foundation...")
+    initial_len = len(df)
+
+    # 1. Drop rows where these columns are NaN/Null
+    required_cols = ['year_built', 'material_type_desc', 'foundation_type']
+    # Only check columns that actually exist in the dataframe
+    check_cols = [c for c in required_cols if c in df.columns]
+    df.dropna(subset=check_cols, inplace=True)
+
+    # 2. Drop rows where string columns might be empty strings or whitespace
+    str_cols = ['material_type_desc', 'foundation_type']
+    for col in str_cols:
+        if col in df.columns:
+            # Filter out empty strings '' or whitespace ' '
+            df = df[df[col].astype(str).str.strip() != '']
+            # Optional: If you also want to remove explicit "Unknown" strings, uncomment below:
+            # df = df[~df[col].astype(str).str.lower().isin(['unknown', 'n/a', 'none'])]
+
+    print(f"   -> Removed {initial_len - len(df)} incomplete records.")
+    # ----------------------------------
 
     # Handle Dates for Demolition Calculation
     df['DEMOLITION_DATE'] = pd.to_datetime(df['DEMOLITION_DATE'], errors='coerce')

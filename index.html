@@ -591,7 +591,7 @@
                             </li>
                             
                             <li style="margin-bottom: 8px;">
-                                <strong>Outlier Removal:</strong> Records with calculated lifespans <strong>≥ 500 years</strong> were removed.
+                                <strong>Extra Cleaning:</strong> Cleaned buildings without <strong>built year</strong>, <strong>foundation & material</strong> type info, and ouliers with lifespans <strong>≥ 500 years</strong> were removed.
                             </li>
                         </ol>
                     </div>
@@ -925,8 +925,8 @@
         let currentCategory = 'material';
 
         const categoryOrders = {
-            material: ['Wood', 'Masonry', 'Concrete', 'Steel', 'Unknown'],
-            foundation: ['Slab', 'Basement', 'Crawl Space', 'Pile', 'Pier', 'Unknown', 'Solid Wall'],
+            material: ['Wood', 'Masonry', 'Concrete', 'Steel'],
+            foundation: ['Slab', 'Basement', 'Crawl Space', 'Pile', 'Pier', 'Solid Wall'],
             occupancy: ['Residential', 'Commercial', 'Industrial', 'Government', 'Education', 'Assembly', 'Utility and Misc', 'Unclassified']
         };
 
@@ -1173,7 +1173,7 @@
             let sortedMaterials = Object.keys(sortTotals).sort((a, b) => sortTotals[b] - sortTotals[a]);
             sortedMaterials = sortedMaterials.slice(0, 20); 
 
-            const fixedOrder = ["Wood", "Masonry", "Concrete", "Steel", "Unknown"];
+            const fixedOrder = ["Wood", "Masonry", "Concrete", "Steel"];
             sortedMaterials.sort((a, b) => {
                 let idxA = fixedOrder.indexOf(a);
                 let idxB = fixedOrder.indexOf(b);
@@ -1756,7 +1756,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
     let sortedCategories = Object.keys(sortingTotals);
 
     if (category === 'material') {
-        const fixedOrder = ["Wood", "Masonry", "Concrete", "Steel", "Unknown"];
+        const fixedOrder = ["Wood", "Masonry", "Concrete", "Steel"];
         sortedCategories.sort((a, b) => {
             let idxA = fixedOrder.indexOf(a);
             let idxB = fixedOrder.indexOf(b);
