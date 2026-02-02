@@ -911,6 +911,13 @@
             </div>
 
             <div class="chart-container">
+                <h2 class="chart-title">Age of Demolished Buildings by Construction Year</h2>
+                <div style="height: 400px;">
+                    <canvas id="ageByBuiltYearChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
                 <h2 class="chart-title">Building Lifespan Distribution by Demolition(Razed) Year</h2>
                 <p class="chart-description">Each point represents a building's age at demolition. Points are jittered horizontally to show density.</p>
                 <canvas id="lifespanStripPlot"></canvas>
@@ -1647,7 +1654,7 @@
                 updateDashboard(data);
                 updateRazeLifespanSummary(data);
 
-
+                renderAgeByConstructionYearChart(data);
                 setTimeout(() => {
                     initZoningDeepDiveMap();
                     renderZoningOverviewTable(data);
@@ -2032,6 +2039,110 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                             title: { display: true, text: 'Count' }, 
                             type: useLogScale ? 'logarithmic' : 'linear',
                             beginAtZero: true 
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderAgeByConstructionYearChart(data) {
+            const rawData = data.construction_vs_age_data; 
+
+            const PLASMA_COLORS = [
+                    '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786', 
+                    '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
+                ];
+
+            const ageBins = [
+                    { label: '0-25 years',   max: 25,   color: PLASMA_COLORS[0] }, 
+                    { label: '26-50 years',  max: 50,   color: PLASMA_COLORS[2] }, 
+                    { label: '51-75 years',  max: 75,   color: PLASMA_COLORS[4] }, 
+                    { label: '76-100 years', max: 100,  color: PLASMA_COLORS[6] }, 
+                    { label: '100+ years',   max: 9999, color: PLASMA_COLORS[9] } 
+                ];
+
+            const yearMap = new Map();
+            const allYears = new Set();
+
+            rawData.forEach(item => {
+                let year = item.year_built;
+
+                if (year < 1900) {
+                    year = 'Pre-1900';
+                }
+
+                allYears.add(year);
+
+                if (!yearMap.has(year)) {
+                    yearMap.set(year, {});
+                }
+                
+                const yearEntry = yearMap.get(year);
+                
+                const bin = ageBins.find(b => item.lifespan <= b.max);
+                if (bin) {
+                    yearEntry[bin.label] = (yearEntry[bin.label] || 0) + 1;
+                }
+            });
+
+            const sortedYears = Array.from(allYears).sort((a, b) => {
+                if (a === 'Pre-1900') return -1;
+                if (b === 'Pre-1900') return 1;
+                return a - b;
+            });
+
+            const datasets = ageBins.map(bin => ({
+                label: bin.label,
+                data: sortedYears.map(year => yearMap.get(year)[bin.label] || 0),
+                backgroundColor: bin.color,
+                stack: 'Stack 0' 
+            }));
+
+            const ctx = document.getElementById('ageByBuiltYearChart').getContext('2d');
+
+            if (window.ageByYearChartInstance) {
+                window.ageByYearChartInstance.destroy();
+            }
+
+            window.ageByYearChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedYears,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: { 
+                            stacked: true, 
+                            title: { display: true, text: 'Construction Year' },
+                            ticks: {
+                                maxRotation: 90,
+                                minRotation: 0,
+                                autoSkip: true, 
+                                maxTicksLimit: 20
+                            }
+                        },
+                        y: { 
+                            stacked: true, 
+                            title: { display: true, text: 'Number of Buildings Demolished' } 
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return 'Built in: ' + context[0].label;
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'top'
                         }
                     }
                 }

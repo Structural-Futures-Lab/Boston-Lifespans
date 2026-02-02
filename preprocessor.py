@@ -25,12 +25,9 @@ def process_demolition_data(
     print("STARTING PROCESSING")
     print(f"1. Loading demolition data from {gpkg_path}...")
 
-    # 1. Load Demolition Data (Using Pyogrio for speed)
-    # ---------------------------------------------------------
     try:
         gdf = pyogrio.read_dataframe(gpkg_path, use_arrow=True)
 
-        # If geometry is Polygon (building footprints), convert to Centroid (Points)
         if not gdf.empty and gdf.geometry.iloc[0].geom_type != 'Point':
             print("   Converting building polygons to centroids...")
             gdf['geometry'] = gdf.geometry.centroid
@@ -39,14 +36,10 @@ def process_demolition_data(
         print(f"Error loading GPKG: {e}")
         return None
 
-    # 2. Ensure Coordinate System is Lat/Lon (EPSG:4326)
-    # ---------------------------------------------------------
     if gdf.crs and gdf.crs.to_string() != 'EPSG:4326':
         print("   Reprojecting demolition data to EPSG:4326...")
         gdf = gdf.to_crs(epsg=4326)
 
-    # 3. Spatial Join with Zoning Data
-    # ---------------------------------------------------------
     print(f"2. Loading zoning data from {zoning_path}...")
     try:
         zoning_gdf = gpd.read_file(zoning_path)
@@ -63,55 +56,39 @@ def process_demolition_data(
         gdf['Zoning_District'] = None
         gdf['Zoning_Subdistrict'] = None
 
-    # 4. Extract Coordinates and Convert to Standard DataFrame
-    # ---------------------------------------------------------
     gdf['LONGITUDE'] = gdf.geometry.x
     gdf['LATITUDE'] = gdf.geometry.y
 
-    # Drop geometry to save memory
     df = pd.DataFrame(gdf.drop(columns='geometry'))
     initial_ma_count = len(df)
 
-    # 5. Data Cleaning & Calculation
-    # ---------------------------------------------------------
     print("3. Cleaning and filtering data...")
 
-    # Ensure numeric year_built first (non-numeric values become NaN)
     df['year_built'] = pd.to_numeric(df['year_built'], errors='coerce')
 
-    # --- NEW STRICT FILTERING LOGIC ---
     print("   Applying strict filtering: Removing rows missing Year Built, Material, or Foundation...")
     initial_len = len(df)
 
-    # 1. Drop rows where these columns are NaN/Null
     required_cols = ['year_built', 'material_type_desc', 'foundation_type']
-    # Only check columns that actually exist in the dataframe
     check_cols = [c for c in required_cols if c in df.columns]
     df.dropna(subset=check_cols, inplace=True)
 
-    # 2. Drop rows where string columns might be empty strings or whitespace
     str_cols = ['material_type_desc', 'foundation_type']
     for col in str_cols:
         if col in df.columns:
-            # Filter out empty strings '' or whitespace ' '
             df = df[df[col].astype(str).str.strip() != '']
-            # Optional: If you also want to remove explicit "Unknown" strings, uncomment below:
-            # df = df[~df[col].astype(str).str.lower().isin(['unknown', 'n/a', 'none'])]
+
 
     print(f"   -> Removed {initial_len - len(df)} incomplete records.")
-    # ----------------------------------
 
-    # Handle Dates for Demolition Calculation
     df['DEMOLITION_DATE'] = pd.to_datetime(df['DEMOLITION_DATE'], errors='coerce')
     df['demolition_year'] = df['DEMOLITION_DATE'].dt.year
-    # Calculate Lifespan
+
     df['lifespan'] = df['demolition_year'] - df['year_built']
 
-    # Calculate Current Age for ALL buildings (Current Year - Year Built)
     CURRENT_YEAR = 2025
     df['current_age'] = CURRENT_YEAR - df['year_built']
 
-    # --- KEY CHANGE: CREATE A COPY OF ALL BUILDINGS HERE ---
     print("   Creating snapshot of all buildings (for zoning density stats)...")
     all_buildings_df = df.copy()
 
@@ -120,16 +97,12 @@ def process_demolition_data(
     all_buildings_df = all_buildings_df[~exclude_mask]
     print(f"   -> Removed {exclude_mask.sum()} demolished buildings from Current Inventory.")
 
-    # --- FILTERING STEP FOR DEMOLITION DATASET ---
-    # This step removes buildings that have NO demolition date or invalid lifespan
-    # df now becomes "Demolished Buildings Only"
+
     df = df[df['lifespan'] < 500]
 
-    # Handle Material and Foundation columns
     if 'material_type_desc' not in df.columns: df['material_type_desc'] = 'Unknown'
     if 'foundation_type' not in df.columns: df['foundation_type'] = 'Unknown'
 
-    # Also handle missing material for the all_buildings_df for accurate filtering later if needed
     if 'material_type_desc' not in all_buildings_df.columns: all_buildings_df['material_type_desc'] = 'Unknown'
     if 'Est GFA sqmeters' not in df.columns:
         print("   Warning: 'Est GFA sqmeters' column not found! Defaulting to 0.")
@@ -175,9 +148,6 @@ def process_demolition_data(
     else:
         df['status_norm'] = 'Close'
 
-    # ==========================================
-    # GENERATE JSON STRUCTURE
-    # ==========================================
     result = {}
 
     boston_df = df[df['Zoning_District'].notna()]
@@ -742,6 +712,16 @@ def process_demolition_data(
             if len(m_df) > 0:
                 raw_boxplot[demo][mat['material']] = m_df['lifespan'].tolist()
     result['material_lifespan_raw_by_demo'] = raw_boxplot
+
+    valid_raze_for_chart = boston_df[
+        (boston_df['DEMOLITION_TYPE'] == 'RAZE') &
+        (boston_df['lifespan'] > 0)
+        ]
+
+    result['construction_vs_age_data'] = valid_raze_for_chart[['year_built', 'lifespan']].dropna().to_dict(
+        orient='records')
+
+    print("   -> Added construction_vs_age_data for the new stacked chart.")
 
     return result
 
