@@ -1922,7 +1922,6 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             return m ? [parseInt(m[1]), parseInt(m[2])] : [0, 0]; 
         }
 
-
         function createLifespanChart(data, globalMaxAge) { 
             const ctx = document.getElementById('lifespanChart').getContext('2d');
             if (charts.lifespan) charts.lifespan.destroy();
