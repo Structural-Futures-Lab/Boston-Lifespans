@@ -612,6 +612,33 @@ def process_demolition_data(
     result['yearly_age_distribution'] = yearly_age_dist
     result['yearly_construction_era'] = yearly_era_dist
 
+    yearly_stock_dist = {}
+
+    demolished_subset = df[df['lifespan'] > 0]
+    full_stock_df = pd.concat([all_buildings_df, demolished_subset], ignore_index=True)
+
+    boston_stock_df = full_stock_df[full_stock_df['Zoning_District'].notna()]
+
+    for year in all_years:
+        y_str = str(year)
+
+        is_built = boston_stock_df['year_built'] <= year
+
+        is_demolished = (boston_stock_df['demolition_year'] <= year) & (boston_stock_df['lifespan'] > 0)
+
+        active_mask = is_built & (~is_demolished)
+
+        current_ages = year - boston_stock_df.loc[active_mask, 'year_built']
+
+        stock_counts = {label: 0 for _, _, label in age_bins_def}
+        for start, end, label in age_bins_def:
+            c = ((current_ages >= start) & (current_ages < end)).sum()
+            stock_counts[label] = int(c)
+
+        yearly_stock_dist[y_str] = stock_counts
+
+    result['yearly_stock_age_distribution'] = yearly_stock_dist
+
     strip_plot_data = {'All': [], 'RAZE': []}
 
     for year in all_years:

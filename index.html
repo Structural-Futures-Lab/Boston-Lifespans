@@ -539,7 +539,7 @@
                         <h4 style="margin-bottom: 10px; color: #3498db;">Data Processing & Cleaning</h4>
                         <ol style="margin-left: 20px; padding-left: 0; line-height: 1.5; color: #444; font-size: 0.9em;">
                             <li style="margin-bottom: 8px;">
-                                <strong>Data Cleaning:</strong> 
+                                <strong>Strict Data Cleaning:</strong> 
                                 Raw permits were filtered for <code>RAZE</code> only. 
                                 <br><span style="color:#666; font-size:0.9em;">• <strong>Prefix Filtering:</strong> Excluded non-structural permit types (Plumbing, Electrical, Alteration).</span>
                                 <br><span style="color:#666; font-size:0.9em;">• <strong>Context-Aware Keyword Logic:</strong> Applied a "Smart Filter" to remove non-building structures (billboards, pools) and stand-alone auxiliary structures (pure garage/shed demolitions). As a <strong>"Rescue Logic"</strong> preserved records where garages were demolished <em>alongside</em> main residential or commercial structures.</span>
@@ -899,6 +899,12 @@
             </div>
 
             <div class="chart-container">
+                <h2 class="chart-title">Building Stock Age Distribution by Year</h2>
+                <p class="chart-description">Shows the age distribution of all standing buildings for each year (Historical Context)</p>
+                <canvas id="stockAgeChart"></canvas>
+            </div>
+
+            <div class="chart-container">
                 <h2 class="chart-title">Age Distribution of Demolished(Razed) Buildings by Year</h2>
                 <p class="chart-description">Shows the relative ages of buildings demolished each year, based on their lifespan at demolition</p>
                 <canvas id="ageDistributionChart"></canvas>
@@ -911,7 +917,18 @@
             </div>
 
             <div class="chart-container">
-                <h2 class="chart-title">Age of Demolished Buildings by Construction Year</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 class="chart-title" style="margin-bottom: 0;">Age of Demolished Buildings by Construction Year</h2>
+                    <div style="font-size: 0.9em;">
+                        <label style="font-weight: 500; margin-right: 5px;">Bin Size:</label>
+                        <select id="builtYearBinSize" onchange="updateBuiltYearChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="1">1 Year</option>
+                            <option value="5">5 Years</option>
+                            <option value="10" selected>10 Years (Decade)</option>
+                            <option value="20">20 Years</option>
+                        </select>
+                    </div>
+                </div>
                 <div style="height: 400px;">
                     <canvas id="ageByBuiltYearChart"></canvas>
                 </div>
@@ -1584,6 +1601,7 @@
             createLifespanChart(currentData, globalMaxAge);
             const currentAgeData = currentData.current_age_distribution_10yr || [];
             createCurrentAgeChart(currentAgeData, binSize, globalMaxAge);
+            createStockAgeChart(currentData.yearly_stock_age_distribution);
             createAgeDistributionChart(currentData.yearly_age_distribution);
             createConstructionEraChart(currentData.yearly_construction_era);
             createLifespanStripPlot(currentData.lifespan_by_year_boxplot);
@@ -1654,7 +1672,7 @@
                 updateDashboard(data);
                 updateRazeLifespanSummary(data);
 
-                renderAgeByConstructionYearChart(data);
+                renderAgeByConstructionYearChart(data, 10);
                 setTimeout(() => {
                     initZoningDeepDiveMap();
                     renderZoningOverviewTable(data);
@@ -2044,57 +2062,95 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             });
         }
 
-        function renderAgeByConstructionYearChart(data) {
-            const rawData = data.construction_vs_age_data; 
+        function updateBuiltYearChart() {
+            if (!currentData) return;
+            const binSize = parseInt(document.getElementById('builtYearBinSize').value) || 10;
+            renderAgeByConstructionYearChart(currentData, binSize);
+        }
+
+        function renderAgeByConstructionYearChart(data, binSize = 10) {
+            const rawData = data.construction_vs_age_data;
+            if (!rawData) return;
 
             const PLASMA_COLORS = [
-                    '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786', 
-                    '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
-                ];
+                '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786', 
+                '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
+            ];
 
             const ageBins = [
-                    { label: '0-25 years',   max: 25,   color: PLASMA_COLORS[0] }, 
-                    { label: '26-50 years',  max: 50,   color: PLASMA_COLORS[2] }, 
-                    { label: '51-75 years',  max: 75,   color: PLASMA_COLORS[4] }, 
-                    { label: '76-100 years', max: 100,  color: PLASMA_COLORS[6] }, 
-                    { label: '100+ years',   max: 9999, color: PLASMA_COLORS[9] } 
-                ];
+                { label: '0-25 years',   max: 25,   color: PLASMA_COLORS[0] }, 
+                { label: '26-50 years',  max: 50,   color: PLASMA_COLORS[2] }, 
+                { label: '51-75 years',  max: 75,   color: PLASMA_COLORS[4] }, 
+                { label: '76-100 years', max: 100,  color: PLASMA_COLORS[6] }, 
+                { label: '100+ years',   max: 9999, color: PLASMA_COLORS[9] } 
+            ];
 
-            const yearMap = new Map();
-            const allYears = new Set();
-
-            rawData.forEach(item => {
-                let year = item.year_built;
-
-                if (year < 1900) {
-                    year = 'Pre-1900';
-                }
-
-                allYears.add(year);
-
-                if (!yearMap.has(year)) {
-                    yearMap.set(year, {});
-                }
-                
-                const yearEntry = yearMap.get(year);
-                
-                const bin = ageBins.find(b => item.lifespan <= b.max);
-                if (bin) {
-                    yearEntry[bin.label] = (yearEntry[bin.label] || 0) + 1;
+            let minYear = 9999;
+            let realMaxYear = 0; 
+            
+            rawData.forEach(d => {
+                if (d.year_built >= 1900) {
+                    if (d.year_built < minYear) minYear = d.year_built;
+                    if (d.year_built > realMaxYear) realMaxYear = d.year_built;
                 }
             });
 
-            const sortedYears = Array.from(allYears).sort((a, b) => {
-                if (a === 'Pre-1900') return -1;
-                if (b === 'Pre-1900') return 1;
-                return a - b;
+            if (realMaxYear === 0) realMaxYear = new Date().getFullYear();
+
+            let startLoopYear = Math.floor(minYear / binSize) * binSize;
+
+            let endLoopYear = Math.floor(realMaxYear / binSize) * binSize;
+
+            const yearMap = new Map();
+            const allBins = [];
+
+            const preLabel = 'Pre-1900';
+            allBins.push(preLabel);
+            yearMap.set(preLabel, {});
+
+            for (let y = startLoopYear; y <= endLoopYear; y += binSize) {
+                let label;
+                if (binSize === 1) {
+                    label = y.toString();
+                } else {
+                    label = `${y}-${y + binSize}`;
+                }
+                
+                allBins.push(label);
+                yearMap.set(label, {}); 
+            }
+
+            rawData.forEach(item => {
+                let year = item.year_built;
+                let binLabel;
+
+                if (year < 1900) {
+                    binLabel = 'Pre-1900';
+                } else {
+                    if (binSize === 1) {
+                        binLabel = year.toString();
+                    } else {
+                        const start = Math.floor(year / binSize) * binSize;
+                        binLabel = `${start}-${start + binSize}`;
+                    }
+                }
+
+                if (yearMap.has(binLabel)) {
+                    const binEntry = yearMap.get(binLabel);
+                    const ageGroup = ageBins.find(b => item.lifespan <= b.max);
+                    if (ageGroup) {
+                        binEntry[ageGroup.label] = (binEntry[ageGroup.label] || 0) + 1;
+                    }
+                }
             });
 
             const datasets = ageBins.map(bin => ({
                 label: bin.label,
-                data: sortedYears.map(year => yearMap.get(year)[bin.label] || 0),
+                data: allBins.map(label => yearMap.get(label)[bin.label] || 0),
                 backgroundColor: bin.color,
-                stack: 'Stack 0' 
+                stack: 'Stack 0',
+                barPercentage: binSize === 1 ? 1.0 : 0.9, 
+                categoryPercentage: binSize === 1 ? 1.0 : 0.9
             }));
 
             const ctx = document.getElementById('ageByBuiltYearChart').getContext('2d');
@@ -2106,7 +2162,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             window.ageByYearChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: sortedYears,
+                    labels: allBins,
                     datasets: datasets
                 },
                 options: {
@@ -2119,12 +2175,12 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                     scales: {
                         x: { 
                             stacked: true, 
-                            title: { display: true, text: 'Construction Year' },
+                            title: { display: true, text: `Construction Year (Bin: ${binSize === 1 ? 'Yearly' : binSize + ' Years'})` },
                             ticks: {
                                 maxRotation: 90,
                                 minRotation: 0,
                                 autoSkip: true, 
-                                maxTicksLimit: 20
+                                maxTicksLimit: 25 
                             }
                         },
                         y: { 
@@ -2136,19 +2192,77 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                         tooltip: {
                             callbacks: {
                                 title: function(context) {
-                                    return 'Built in: ' + context[0].label;
+                                    return 'Built: ' + context[0].label;
                                 }
                             }
                         },
-                        legend: {
-                            position: 'top'
-                        }
+                        legend: { position: 'top' }
                     }
                 }
             });
         }
 
-        // 2. Age Distribution by Year
+        function createStockAgeChart(stockData) {
+            const ctx = document.getElementById('stockAgeChart').getContext('2d');
+            if (charts.stockAge) charts.stockAge.destroy();
+
+            if (!stockData) return;
+
+            const years = Object.keys(stockData).sort();
+            const ageBins = [
+                '0-5 years', '5-10 years', '10-20 years', '20-30 years', 
+                '30-50 years', '50-75 years', '75-100 years', '100-150 years', '150+ years'
+            ];
+            
+            const plasmaColors = [
+                'rgba(13, 8, 135, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(139, 10, 165, 0.8)',
+                'rgba(185, 50, 137, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(244, 136, 73, 0.8)',
+                'rgba(254, 188, 43, 0.8)', 'rgba(240, 249, 33, 0.8)', 'rgba(240, 249, 33, 0.9)'
+            ];
+
+            const datasets = ageBins.map((bin, i) => ({
+                label: bin,
+                data: years.map(y => stockData[y]?.[bin] || 0),
+                backgroundColor: plasmaColors[i],
+                borderWidth: 0
+            }));
+
+            charts.stockAge = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: years, datasets: datasets },
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: { 
+                        x: { 
+                            stacked: true,
+                            title: { display: true, text: 'Year' }
+                        }, 
+                        y: { 
+                            stacked: true,
+                            title: { display: true, text: 'Total Buildings (Stock)' }
+                        } 
+                    },
+                    plugins: {
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                footer: (tooltipItems) => {
+                                    let sum = 0;
+                                    tooltipItems.forEach(function(tooltipItem) {
+                                        sum += tooltipItem.parsed.y;
+                                    });
+                                    return 'Total Stock: ' + sum.toLocaleString();
+                                }
+                            }
+                        },
+                        legend: { display: true, position: 'top' } 
+                    }
+                }
+            });
+        }
+
         function createAgeDistributionChart(ageDistData) {
             const ctx = document.getElementById('ageDistributionChart').getContext('2d');
             if (charts.ageDistribution) charts.ageDistribution.destroy();
@@ -2169,7 +2283,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
 
             const datasets = ageBins.map((bin, i) => ({
                 label: bin,
-                data: years.map(y => ageDistData[y]?.All?.[bin] || 0), // Defaulting to 'All'
+                data: years.map(y => ageDistData[y]?.All?.[bin] || 0), 
                 backgroundColor: plasmaColors[i],
                 borderWidth: 0
             }));
@@ -2178,13 +2292,30 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 type: 'bar',
                 data: { labels: years, datasets: datasets },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { x: { stacked: true }, y: { stacked: true } }
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: { x: { stacked: true }, y: { stacked: true } },
+                    interaction: {
+                        mode: 'index',    
+                        intersect: false,  
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                footer: (tooltipItems) => {
+                                    let sum = 0;
+                                    tooltipItems.forEach(function(tooltipItem) {
+                                        sum += tooltipItem.parsed.y;
+                                    });
+                                    return 'Total: ' + sum; 
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
 
-        // 3. Construction Era Chart
         function createConstructionEraChart(eraData) {
             const ctx = document.getElementById('constructionEraChart').getContext('2d');
             if (charts.constructionEra) charts.constructionEra.destroy();
@@ -2209,8 +2340,26 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 type: 'bar',
                 data: { labels: years, datasets: datasets },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { x: { stacked: true }, y: { stacked: true } }
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    scales: { x: { stacked: true }, y: { stacked: true } },
+                    interaction: {
+                        mode: 'index',   
+                        intersect: false, 
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                footer: (tooltipItems) => {
+                                    let sum = 0;
+                                    tooltipItems.forEach(function(tooltipItem) {
+                                        sum += tooltipItem.parsed.y;
+                                    });
+                                    return 'Total: ' + sum; 
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
