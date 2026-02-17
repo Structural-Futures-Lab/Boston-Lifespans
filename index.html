@@ -899,7 +899,16 @@
             </div>
 
             <div class="chart-container">
-                <h2 class="chart-title">Building Stock Age Distribution by Year</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 class="chart-title" style="margin-bottom: 0;">Building Stock Age Distribution by Year</h2>
+                    <div style="font-size: 0.9em;">
+                        <label style="font-weight: 500; margin-right: 5px;">Chart Type:</label>
+                        <select id="stockAgeChartType" onchange="updateStockAgeChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="bar" selected>Stacked Bar</option>
+                            <option value="area">Stacked Area</option>
+                        </select>
+                    </div>
+                </div>
                 <p class="chart-description">Shows the age distribution of all standing buildings for each year (Historical Context)</p>
                 <canvas id="stockAgeChart"></canvas>
             </div>
@@ -2202,7 +2211,13 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             });
         }
 
-        function createStockAgeChart(stockData) {
+        function updateStockAgeChart() {
+            if (!currentData || !currentData.yearly_stock_age_distribution) return;
+            const type = document.getElementById('stockAgeChartType').value;
+            createStockAgeChart(currentData.yearly_stock_age_distribution, type);
+        }
+
+        function createStockAgeChart(stockData, chartType = 'bar') {
             const ctx = document.getElementById('stockAgeChart').getContext('2d');
             if (charts.stockAge) charts.stockAge.destroy();
 
@@ -2220,15 +2235,22 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 'rgba(254, 188, 43, 0.8)', 'rgba(240, 249, 33, 0.8)', 'rgba(240, 249, 33, 0.9)'
             ];
 
+            const isArea = chartType === 'area';
+
             const datasets = ageBins.map((bin, i) => ({
                 label: bin,
                 data: years.map(y => stockData[y]?.[bin] || 0),
                 backgroundColor: plasmaColors[i],
-                borderWidth: 0
+                borderColor: plasmaColors[i],
+                borderWidth: isArea ? 1 : 0, 
+                fill: isArea,          
+                pointRadius: isArea ? 0 : undefined, 
+                pointHoverRadius: isArea ? 4 : undefined,
+                tension: isArea ? 0.4 : 0    
             }));
 
             charts.stockAge = new Chart(ctx, {
-                type: 'bar',
+                type: isArea ? 'line' : 'bar', 
                 data: { labels: years, datasets: datasets },
                 options: {
                     responsive: true, 
@@ -2242,6 +2264,10 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                             stacked: true,
                             title: { display: true, text: 'Total Buildings (Stock)' }
                         } 
+                    },
+                    interaction: {
+                        mode: 'index', 
+                        intersect: false
                     },
                     plugins: {
                         tooltip: {
