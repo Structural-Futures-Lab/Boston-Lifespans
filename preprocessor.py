@@ -623,19 +623,24 @@ def process_demolition_data(
         y_str = str(year)
 
         is_built = boston_stock_df['year_built'] <= year
-
         is_demolished = (boston_stock_df['demolition_year'] <= year) & (boston_stock_df['lifespan'] > 0)
-
         active_mask = is_built & (~is_demolished)
 
         current_ages = year - boston_stock_df.loc[active_mask, 'year_built']
-
+        active_gfa = boston_stock_df.loc[active_mask, 'Est GFA sqmeters']
         stock_counts = {label: 0 for _, _, label in age_bins_def}
-        for start, end, label in age_bins_def:
-            c = ((current_ages >= start) & (current_ages < end)).sum()
-            stock_counts[label] = int(c)
+        stock_gfa = {label: 0 for _, _, label in age_bins_def}
 
-        yearly_stock_dist[y_str] = stock_counts
+        for start, end, label in age_bins_def:
+            bin_mask = (current_ages >= start) & (current_ages < end)
+
+            stock_counts[label] = int(bin_mask.sum())
+            stock_gfa[label] = float(active_gfa[bin_mask].sum())
+
+        yearly_stock_dist[y_str] = {
+            'count': stock_counts,
+            'gfa': stock_gfa
+        }
 
     result['yearly_stock_age_distribution'] = yearly_stock_dist
 
@@ -749,6 +754,20 @@ def process_demolition_data(
         orient='records')
 
     print("   -> Added construction_vs_age_data for the new stacked chart.")
+
+    demo_gfa = all_raze_pos[all_raze_pos['Est GFA sqmeters'] > 0]
+    curr_gfa = all_current[all_current['Est GFA sqmeters'] > 0]
+
+    result['scatter_gfa_data'] = {
+        'demolished': demo_gfa[['Est GFA sqmeters', 'lifespan', 'material_group', 'occupancy_group']].rename(columns={
+            'Est GFA sqmeters': 'gfa', 'material_group': 'material', 'occupancy_group': 'occupancy'
+        }).to_dict(orient='records'),
+
+        'current': curr_gfa[['Est GFA sqmeters', 'current_age', 'material_group', 'occupancy_group']].rename(columns={
+            'Est GFA sqmeters': 'gfa', 'current_age': 'age', 'material_group': 'material',
+            'occupancy_group': 'occupancy'
+        }).to_dict(orient='records')
+    }
 
     return result
 

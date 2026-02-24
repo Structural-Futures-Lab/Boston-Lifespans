@@ -591,7 +591,7 @@
                             </li>
                             
                             <li style="margin-bottom: 8px;">
-                                <strong>Extra Cleaning:</strong> Cleaned buildings without <strong>built year</strong>, <strong>foundation & material</strong> type info, and ouliers with lifespans <strong>≥ 500 years</strong> were removed.
+                                <strong>Extra Cleaning:</strong> Cleaned buildings without <strong>built year</strong>, <strong>foundation & material</strong> type info, <strong>GFA =0</strong>, and ouliers with lifespans <strong>≥ 500 years</strong> were removed.
                             </li>
                         </ol>
                     </div>
@@ -872,6 +872,42 @@
                 </div>
             </div>
 
+            <div class="chart-container">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h2 class="chart-title" style="margin-bottom: 0;">GFA vs. Lifespan & Current Age</h2>
+                    
+                    <div style="font-size: 0.9em; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        
+                        <div style="display: flex; align-items: center; gap: 5px; background: #fff0f5; padding: 4px 10px; border-radius: 4px; border: 1px solid #f8cdda;">
+                            <label style="font-weight: 500; color: #900020;">Demo GFA:</label>
+                            <input type="number" id="demoGfaMin" placeholder="Min" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                            <span style="color: #666;">-</span>
+                            <input type="number" id="demoGfaMax" placeholder="Max" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 5px; background: #f0f8ff; padding: 4px 10px; border-radius: 4px; border: 1px solid #cce5ff;">
+                            <label style="font-weight: 500; color: #004085;">Current GFA:</label>
+                            <input type="number" id="curGfaMin" placeholder="Min" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                            <span style="color: #666;">-</span>
+                            <input type="number" id="curGfaMax" placeholder="Max" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 4px 10px; border-radius: 4px; border: 1px solid #eee;">
+                            <label style="font-weight: 500; margin-right: 5px;">Color By:</label>
+                            <select id="gfaScatterColor" onchange="updateGFAScatter()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="occupancy" selected>Occupancy</option>
+                                <option value="material">Material</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 20px; height: 400px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;"><canvas id="scatterGfaDemolished"></canvas></div>
+                    <div style="flex: 1; min-width: 300px;"><canvas id="scatterGfaCurrent"></canvas></div>
+                </div>
+            </div>
+
 
             <div class="chart-container">
                 <h2 class="chart-title">Demolitions by Year</h2>
@@ -901,12 +937,23 @@
             <div class="chart-container">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h2 class="chart-title" style="margin-bottom: 0;">Building Stock Age Distribution by Year</h2>
-                    <div style="font-size: 0.9em;">
-                        <label style="font-weight: 500; margin-right: 5px;">Chart Type:</label>
-                        <select id="stockAgeChartType" onchange="updateStockAgeChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
-                            <option value="bar" selected>Stacked Bar</option>
-                            <option value="area">Stacked Area</option>
-                        </select>
+                    <div style="font-size: 0.9em; display: flex; gap: 15px; flex-wrap: wrap;">
+                        
+                        <div style="display: flex; align-items: center;">
+                            <label style="font-weight: 500; margin-right: 5px;">Metric:</label>
+                            <select id="stockAgeMetric" onchange="updateStockAgeChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="count" selected>Building Count</option>
+                                <option value="gfa">GFA (sq meters)</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; align-items: center;">
+                            <label style="font-weight: 500; margin-right: 5px;">Chart Type:</label>
+                            <select id="stockAgeChartType" onchange="updateStockAgeChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="bar" selected>Stacked Bar</option>
+                                <option value="area">Stacked Area</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <p class="chart-description">Shows the age distribution of all standing buildings for each year (Historical Context)</p>
@@ -926,16 +973,24 @@
             </div>
 
             <div class="chart-container">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                     <h2 class="chart-title" style="margin-bottom: 0;">Age of Demolished Buildings by Construction Year</h2>
-                    <div style="font-size: 0.9em;">
-                        <label style="font-weight: 500; margin-right: 5px;">Bin Size:</label>
-                        <select id="builtYearBinSize" onchange="updateBuiltYearChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
-                            <option value="1">1 Year</option>
-                            <option value="5">5 Years</option>
-                            <option value="10" selected>10 Years (Decade)</option>
-                            <option value="20">20 Years</option>
-                        </select>
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        
+                        <label style="cursor: pointer; font-size: 0.9em; background: #f8f9fa; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; font-weight: 500;">
+                            <input type="checkbox" id="showBuiltYearColors" onchange="updateBuiltYearChart()"> 
+                            Show Age Categories
+                        </label>
+                        
+                        <div style="font-size: 0.9em;">
+                            <label style="font-weight: 500; margin-right: 5px;">Bin Size:</label>
+                            <select id="builtYearBinSize" onchange="updateBuiltYearChart()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="1">1 Year</option>
+                                <option value="5">5 Years</option>
+                                <option value="10" selected>10 Years (Decade)</option>
+                                <option value="20">20 Years</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div style="height: 400px;">
@@ -1720,6 +1775,7 @@
             updateVisualization();
             createYearlyChart(data.yearly_stacked);
             createScatterPlots(data);
+            updateGFAScatter();
             updateStats('RAZE');
         }
 
@@ -2081,6 +2137,9 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const rawData = data.construction_vs_age_data;
             if (!rawData) return;
 
+            const colorToggle = document.getElementById('showBuiltYearColors');
+            const showColors = colorToggle ? colorToggle.checked : false;
+
             const PLASMA_COLORS = [
                 '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786', 
                 '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
@@ -2107,7 +2166,6 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             if (realMaxYear === 0) realMaxYear = new Date().getFullYear();
 
             let startLoopYear = Math.floor(minYear / binSize) * binSize;
-
             let endLoopYear = Math.floor(realMaxYear / binSize) * binSize;
 
             const yearMap = new Map();
@@ -2153,14 +2211,34 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 }
             });
 
-            const datasets = ageBins.map(bin => ({
-                label: bin.label,
-                data: allBins.map(label => yearMap.get(label)[bin.label] || 0),
-                backgroundColor: bin.color,
-                stack: 'Stack 0',
-                barPercentage: binSize === 1 ? 1.0 : 0.9, 
-                categoryPercentage: binSize === 1 ? 1.0 : 0.9
-            }));
+            let datasets = [];
+
+            if (showColors) {
+                datasets = ageBins.map(bin => ({
+                    label: bin.label,
+                    data: allBins.map(label => yearMap.get(label)[bin.label] || 0),
+                    backgroundColor: bin.color,
+                    stack: 'Stack 0',
+                    barPercentage: binSize === 1 ? 1.0 : 0.9, 
+                    categoryPercentage: binSize === 1 ? 1.0 : 0.9
+                }));
+            } else {
+                const totalData = allBins.map(label => {
+                    let sum = 0;
+                    ageBins.forEach(bin => {
+                        sum += yearMap.get(label)[bin.label] || 0;
+                    });
+                    return sum;
+                });
+                datasets = [{
+                    label: 'Demolished Buildings',
+                    data: totalData,
+                    backgroundColor: colors.RAZE || 'rgba(13, 8, 135, 0.8)', 
+                    stack: 'Stack 0',
+                    barPercentage: binSize === 1 ? 1.0 : 0.9, 
+                    categoryPercentage: binSize === 1 ? 1.0 : 0.9
+                }];
+            }
 
             const ctx = document.getElementById('ageByBuiltYearChart').getContext('2d');
 
@@ -2205,7 +2283,10 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                                 }
                             }
                         },
-                        legend: { position: 'top' }
+                        legend: { 
+                            display: showColors, 
+                            position: 'top' 
+                        }
                     }
                 }
             });
@@ -2214,10 +2295,11 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
         function updateStockAgeChart() {
             if (!currentData || !currentData.yearly_stock_age_distribution) return;
             const type = document.getElementById('stockAgeChartType').value;
-            createStockAgeChart(currentData.yearly_stock_age_distribution, type);
+            const metric = document.getElementById('stockAgeMetric').value; 
+            createStockAgeChart(currentData.yearly_stock_age_distribution, type, metric);
         }
 
-        function createStockAgeChart(stockData, chartType = 'bar') {
+        function createStockAgeChart(stockData, chartType = 'bar', metric = 'count') {
             const ctx = document.getElementById('stockAgeChart').getContext('2d');
             if (charts.stockAge) charts.stockAge.destroy();
 
@@ -2239,7 +2321,12 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
 
             const datasets = ageBins.map((bin, i) => ({
                 label: bin,
-                data: years.map(y => stockData[y]?.[bin] || 0),
+                data: years.map(y => {
+                    if (stockData[y] && stockData[y][metric]) {
+                        return stockData[y][metric][bin] || 0;
+                    }
+                    return stockData[y]?.[bin] || 0; 
+                }),
                 backgroundColor: plasmaColors[i],
                 borderColor: plasmaColors[i],
                 borderWidth: isArea ? 1 : 0, 
@@ -2248,6 +2335,8 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 pointHoverRadius: isArea ? 4 : undefined,
                 tension: isArea ? 0.4 : 0    
             }));
+
+            const yAxisTitleText = metric === 'gfa' ? 'Total GFA (sq meters)' : 'Total Buildings (Stock)';
 
             charts.stockAge = new Chart(ctx, {
                 type: isArea ? 'line' : 'bar', 
@@ -2262,7 +2351,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                         }, 
                         y: { 
                             stacked: true,
-                            title: { display: true, text: 'Total Buildings (Stock)' }
+                            title: { display: true, text: yAxisTitleText } 
                         } 
                     },
                     interaction: {
@@ -2279,7 +2368,8 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                                     tooltipItems.forEach(function(tooltipItem) {
                                         sum += tooltipItem.parsed.y;
                                     });
-                                    return 'Total Stock: ' + sum.toLocaleString();
+                                    const prefixText = metric === 'gfa' ? 'Total GFA: ' : 'Total Stock: ';
+                                    return prefixText + sum.toLocaleString(undefined, {maximumFractionDigits: 0});
                                 }
                             }
                         },
@@ -2390,7 +2480,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             });
         }
 
-    function createLifespanStripPlot(boxplotData) {
+        function createLifespanStripPlot(boxplotData) {
             const ctx = document.getElementById('lifespanStripPlot').getContext('2d');
             if (charts.lifespanStripPlot) charts.lifespanStripPlot.destroy();
             
@@ -2475,6 +2565,124 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                                 }
                             }
                         }
+                    }
+                }
+            });
+        }
+
+        let gfaCharts = {};
+
+        const gfaColorMaps = {
+            occupancy: {
+                'Residential': '#0d0887',    
+                'Commercial': '#46039f',
+                'Government': '#7201a8',
+                'Industrial': '#9c179e',
+                'Assembly': '#bd3786',
+                'Unclassified': '#d8576b',
+                'Education': '#ed7953',
+                'Utility and Misc': '#fb9f3a',
+                'Agriculture': '#f0f921'     
+            },
+            material: {
+                'Wood': '#0d0887',      
+                'Masonry': '#9c179e',  
+                'Concrete': '#ed7953',         
+                'Steel': '#f0f921'             
+            }
+        };
+
+        function getGFAScatterDatasets(rawData, colorBy, yKey) {
+            const groups = {};
+            rawData.forEach(d => {
+                const cat = d[colorBy] || 'Unknown';
+                if (!groups[cat]) groups[cat] = [];
+                groups[cat].push({ x: d.gfa, y: d[yKey] });
+            });
+
+            const fallbackPalette = ['#808080', '#a9a9a9', '#d3d3d3'];
+            let fallbackIndex = 0;
+
+            return Object.keys(groups).map((cat) => {
+                let bgColor = '#808080'; 
+            
+                if (gfaColorMaps[colorBy] && gfaColorMaps[colorBy][cat]) {
+                    bgColor = gfaColorMaps[colorBy][cat];
+                } else {
+                    bgColor = fallbackPalette[fallbackIndex % fallbackPalette.length];
+                    fallbackIndex++;
+                }
+
+                return {
+                    label: cat,
+                    data: groups[cat],
+                    backgroundColor: bgColor,
+                    pointRadius: 2.5,
+                    pointHoverRadius: 5,
+                    borderWidth: 0
+                };
+            });
+        }
+
+    function updateGFAScatter() {
+            if (!currentData || !currentData.scatter_gfa_data) return;
+            const colorBy = document.getElementById('gfaScatterColor').value;
+            
+            const demoGfaMinInput = document.getElementById('demoGfaMin').value;
+            const demoGfaMaxInput = document.getElementById('demoGfaMax').value;
+            const demoGfaMin = demoGfaMinInput !== '' ? parseFloat(demoGfaMinInput) : 0;
+            const demoGfaMax = demoGfaMaxInput !== '' ? parseFloat(demoGfaMaxInput) : Infinity;
+
+            const curGfaMinInput = document.getElementById('curGfaMin').value;
+            const curGfaMaxInput = document.getElementById('curGfaMax').value;
+            const curGfaMin = curGfaMinInput !== '' ? parseFloat(curGfaMinInput) : 0;
+            const curGfaMax = curGfaMaxInput !== '' ? parseFloat(curGfaMaxInput) : Infinity;
+            
+            let demoData = currentData.scatter_gfa_data.demolished;
+            let curData = currentData.scatter_gfa_data.current;
+
+            demoData = demoData.filter(d => d.gfa >= demoGfaMin && d.gfa <= demoGfaMax);
+            curData = curData.filter(d => d.gfa >= curGfaMin && d.gfa <= curGfaMax);
+
+            const demoDatasets = getGFAScatterDatasets(demoData, colorBy, 'lifespan');
+            const curDatasets = getGFAScatterDatasets(curData, colorBy, 'age');
+
+            const commonOptions = {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: {size: 10} } } }
+            };
+
+            if(gfaCharts.demolished) gfaCharts.demolished.destroy();
+            gfaCharts.demolished = new Chart(document.getElementById('scatterGfaDemolished'), {
+                type: 'scatter',
+                data: { datasets: demoDatasets },
+                options: {
+                    ...commonOptions,
+                    plugins: { 
+                        ...commonOptions.plugins, 
+                        title: {display: true, text: 'Demolished: GFA vs Lifespan'},
+                        legend: { display: false } 
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'GFA (sq meters)' } },
+                        y: { title: { display: true, text: 'Lifespan (Years)' } }
+                    }
+                }
+            });
+
+            if(gfaCharts.current) gfaCharts.current.destroy();
+            gfaCharts.current = new Chart(document.getElementById('scatterGfaCurrent'), {
+                type: 'scatter',
+                data: { datasets: curDatasets },
+                options: {
+                    ...commonOptions,
+                    plugins: { 
+                        ...commonOptions.plugins, 
+                        title: {display: true, text: 'Current: GFA vs Age'} 
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'GFA (sq meters)' } },
+                        y: { title: { display: true, text: 'Age (Years)' } }
                     }
                 }
             });
