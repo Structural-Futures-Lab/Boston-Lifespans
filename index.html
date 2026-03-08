@@ -892,6 +892,20 @@
                             <input type="number" id="curGfaMax" placeholder="Max" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
                         </div>
 
+                        <div style="display: flex; align-items: center; gap: 5px; background: #fff5e6; padding: 4px 10px; border-radius: 4px; border: 1px solid #ffcc80;">
+                            <label style="font-weight: 500; color: #d35400;">Demo Age:</label>
+                            <input type="number" id="demoAgeMin" placeholder="Min" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                            <span style="color: #666;">-</span>
+                            <input type="number" id="demoAgeMax" placeholder="Max" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                        </div>
+
+                        <div style="display: flex; align-items: center; gap: 5px; background: #e6f9ec; padding: 4px 10px; border-radius: 4px; border: 1px solid #b2e2c6;">
+                            <label style="font-weight: 500; color: #166534;">Current Age:</label>
+                            <input type="number" id="curAgeMin" placeholder="Min" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                            <span style="color: #666;">-</span>
+                            <input type="number" id="curAgeMax" placeholder="Max" style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateGFAScatter()">
+                        </div>
+
                         <div style="background: #f8f9fa; padding: 4px 10px; border-radius: 4px; border: 1px solid #eee;">
                             <label style="font-weight: 500; margin-right: 5px;">Color By:</label>
                             <select id="gfaScatterColor" onchange="updateGFAScatter()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
@@ -899,6 +913,11 @@
                                 <option value="material">Material</option>
                             </select>
                         </div>
+
+                        <label style="cursor: pointer; font-size: 0.9em; background: #fff5e6; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffcc80;">
+                            <input type="checkbox" id="gfaLogScale" onchange="updateGFAScatter()"> 
+                            Log Scale (GFA Axis)
+                        </label>
                     </div>
                 </div>
                 
@@ -2624,9 +2643,12 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             });
         }
 
-    function updateGFAScatter() {
+        function updateGFAScatter() {
             if (!currentData || !currentData.scatter_gfa_data) return;
+            
             const colorBy = document.getElementById('gfaScatterColor').value;
+            const useLogScale = document.getElementById('gfaLogScale') ? document.getElementById('gfaLogScale').checked : false;
+            const gfaAxisType = useLogScale ? 'logarithmic' : 'linear';
             
             const demoGfaMinInput = document.getElementById('demoGfaMin').value;
             const demoGfaMaxInput = document.getElementById('demoGfaMax').value;
@@ -2637,18 +2659,44 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const curGfaMaxInput = document.getElementById('curGfaMax').value;
             const curGfaMin = curGfaMinInput !== '' ? parseFloat(curGfaMinInput) : 0;
             const curGfaMax = curGfaMaxInput !== '' ? parseFloat(curGfaMaxInput) : Infinity;
+
+            const demoAgeMinInput = document.getElementById('demoAgeMin')?.value || '';
+            const demoAgeMaxInput = document.getElementById('demoAgeMax')?.value || '';
+            const demoAgeMin = demoAgeMinInput !== '' ? parseFloat(demoAgeMinInput) : 0;
+            const demoAgeMax = demoAgeMaxInput !== '' ? parseFloat(demoAgeMaxInput) : Infinity;
+
+            const curAgeMinInput = document.getElementById('curAgeMin')?.value || '';
+            const curAgeMaxInput = document.getElementById('curAgeMax')?.value || '';
+            const curAgeMin = curAgeMinInput !== '' ? parseFloat(curAgeMinInput) : 0;
+            const curAgeMax = curAgeMaxInput !== '' ? parseFloat(curAgeMaxInput) : Infinity;
             
             let demoData = currentData.scatter_gfa_data.demolished;
             let curData = currentData.scatter_gfa_data.current;
 
-            demoData = demoData.filter(d => d.gfa >= demoGfaMin && d.gfa <= demoGfaMax);
-            curData = curData.filter(d => d.gfa >= curGfaMin && d.gfa <= curGfaMax);
+            demoData = demoData.filter(d => 
+                d.gfa >= demoGfaMin && d.gfa <= demoGfaMax &&
+                d.lifespan >= demoAgeMin && d.lifespan <= demoAgeMax
+            );
+            curData = curData.filter(d => 
+                d.gfa >= curGfaMin && d.gfa <= curGfaMax &&
+                d.age >= curAgeMin && d.age <= curAgeMax
+            );
 
-            const demoDatasets = getGFAScatterDatasets(demoData, colorBy, 'lifespan');
-            const curDatasets = getGFAScatterDatasets(curData, colorBy, 'age');
+            let demoDatasets = getGFAScatterDatasets(demoData, colorBy, 'lifespan');
+            demoDatasets = demoDatasets.map(ds => ({
+                ...ds,
+                data: ds.data.map(p => ({ x: p.y, y: p.x }))
+            }));
+
+            let curDatasets = getGFAScatterDatasets(curData, colorBy, 'age');
+            curDatasets = curDatasets.map(ds => ({
+                ...ds,
+                data: ds.data.map(p => ({ x: p.y, y: p.x }))
+            }));
 
             const commonOptions = {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true, 
+                maintainAspectRatio: false,
                 plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: {size: 10} } } }
             };
 
@@ -2660,12 +2708,15 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                     ...commonOptions,
                     plugins: { 
                         ...commonOptions.plugins, 
-                        title: {display: true, text: 'Demolished: GFA vs Lifespan'},
+                        title: {display: true, text: 'Demolished: Lifespan vs GFA'},
                         legend: { display: false } 
                     },
                     scales: {
-                        x: { title: { display: true, text: 'GFA (sq meters)' } },
-                        y: { title: { display: true, text: 'Lifespan (Years)' } }
+                        x: { title: { display: true, text: 'Lifespan (Years)' } },
+                        y: { 
+                            type: gfaAxisType,
+                            title: { display: true, text: 'GFA (sq meters)' }
+                        }
                     }
                 }
             });
@@ -2678,11 +2729,14 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                     ...commonOptions,
                     plugins: { 
                         ...commonOptions.plugins, 
-                        title: {display: true, text: 'Current: GFA vs Age'} 
+                        title: {display: true, text: 'Current: Age vs GFA'} 
                     },
                     scales: {
-                        x: { title: { display: true, text: 'GFA (sq meters)' } },
-                        y: { title: { display: true, text: 'Age (Years)' } }
+                        x: { title: { display: true, text: 'Age (Years)' } },
+                        y: { 
+                            type: gfaAxisType,
+                            title: { display: true, text: 'GFA (sq meters)' }
+                        }
                     }
                 }
             });
