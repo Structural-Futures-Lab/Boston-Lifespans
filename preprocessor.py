@@ -66,17 +66,17 @@ def process_demolition_data(
 
     df['year_built'] = pd.to_numeric(df['year_built'], errors='coerce')
 
-    print("   Applying strict filtering: Removing rows missing Year Built, Material, or Foundation...")
+    print("   Applying filtering: Removing rows missing Year Built, keeping missing Material/Foundation as 'Unknown'...")
     initial_len = len(df)
-
-    required_cols = ['year_built', 'material_type_desc', 'foundation_type']
-    check_cols = [c for c in required_cols if c in df.columns]
-    df.dropna(subset=check_cols, inplace=True)
+    if 'year_built' in df.columns:
+        df.dropna(subset=['year_built'], inplace=True)
 
     str_cols = ['material_type_desc', 'foundation_type']
     for col in str_cols:
         if col in df.columns:
-            df = df[df[col].astype(str).str.strip() != '']
+            df[col] = df[col].fillna('Unknown')
+            df.loc[df[col].astype(str).str.strip() == '', col] = 'Unknown'
+            df.loc[df[col].astype(str).str.lower() == 'nan', col] = 'Unknown'
 
 
     print(f"   -> Removed {initial_len - len(df)} incomplete records.")
@@ -683,12 +683,12 @@ def process_demolition_data(
     result['yearly_stacked'] = yearly_data
     result['yearly_stacked_closed'] = yearly_data
 
-    dist_10yr = make_hist(boston_df['lifespan'], 10)
+    dist_10yr = make_hist(pos_lifespan_df['lifespan'], 10)
     final_dist = []
     for item in dist_10yr:
         rng = item['range']
         s, e = map(int, rng.split('-'))
-        sub_df = boston_df[(boston_df['lifespan'] >= s) & (boston_df['lifespan'] < e)]
+        sub_df = pos_lifespan_df[(pos_lifespan_df['lifespan'] >= s) & (pos_lifespan_df['lifespan'] < e)]
         final_dist.append({
             'range': rng,
             'RAZE': int((sub_df['DEMOLITION_TYPE'] == 'RAZE').sum()),

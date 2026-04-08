@@ -756,6 +756,12 @@
                     </div>
                 </div>
 
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 5px;">
+                    <label style="cursor: pointer; font-size: 0.9em; background: #f8f9fa; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; font-weight: 500;">
+                        <input type="checkbox" id="collapseZone180" onchange="updateZoningDeepDive()"> 
+                        Group 180+ yrs
+                    </label>
+                </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
                     
                     <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
@@ -934,14 +940,20 @@
             </div>
 
             <div class="chart-container">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                     <h2 class="chart-title" style="margin-bottom: 0;">Age Distribution of Demolished Buildings in Boston</h2>
                     
-                    <label style="cursor: pointer; font-size: 0.9em; color: #d35400; background: #fff5e6; padding: 5px 10px; border-radius: 4px; border: 1px solid #ffcc80;">
-                        <input type="checkbox" id="logScale" onchange="updateVisualization()"> 
-                        Log Scale (View Outliers) 
-                        <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(Only affects this & Current Age chart)</span>
-                    </label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="cursor: pointer; font-size: 0.9em; background: #f8f9fa; padding: 5px 10px; border-radius: 4px; border: 1px solid #ddd; font-weight: 500;">
+                            <input type="checkbox" id="collapseGlobal180" onchange="updateVisualization()"> 
+                            Group 180+ yrs
+                        </label>
+                        <label style="cursor: pointer; font-size: 0.9em; color: #d35400; background: #fff5e6; padding: 5px 10px; border-radius: 4px; border: 1px solid #ffcc80;">
+                            <input type="checkbox" id="logScale" onchange="updateVisualization()"> 
+                            Log Scale (View Outliers) 
+                            <span style="color: #666; font-size: 0.85em; margin-left: 5px;">(Only affects this & Current Age chart)</span>
+                        </label>
+                    </div>
                 </div>
                 
                 <canvas id="lifespanChart"></canvas>
@@ -1046,9 +1058,9 @@
         let currentCategory = 'material';
 
         const categoryOrders = {
-            material: ['Wood', 'Masonry', 'Concrete', 'Steel'],
-            foundation: ['Slab', 'Basement', 'Crawl Space', 'Pile', 'Pier', 'Solid Wall'],
-            occupancy: ['Residential', 'Commercial', 'Industrial', 'Government', 'Education', 'Assembly', 'Utility and Misc', 'Unclassified']
+            material: ['Wood', 'Masonry', 'Concrete', 'Steel', 'Unknown'],
+            foundation: ['Slab', 'Basement', 'Crawl Space', 'Pile', 'Pier', 'Solid Wall', 'Unknown'],
+            occupancy: ['Residential', 'Commercial', 'Industrial', 'Government', 'Education', 'Assembly', 'Utility and Misc', 'Unclassified', 'Unknown']
         };
 
 
@@ -2031,10 +2043,16 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const binSize = 20;
             const demolitionView = 'RAZE'; 
             const useLogScale = document.getElementById('logScale').checked;
+            const collapse180 = document.getElementById('collapseGlobal180') ? document.getElementById('collapseGlobal180').checked : false;
+            
             const labels = [];
             const safeMaxAge = Math.max(globalMaxAge || 150, 150); 
             
             for (let start = 0; start < safeMaxAge; start += binSize) {
+                if (collapse180 && start >= 180) {
+                    labels.push('180+');
+                    break;
+                }
                 labels.push(`${start}-${start + binSize}`);
             }
 
@@ -2052,6 +2070,14 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             }
 
             const dataPoints = labels.map(lbl => {
+                if (lbl === '180+') {
+                    let count = 0;
+                    rawData.forEach(d => {
+                        const [dStart, _] = parseRange(d.range);
+                        if (dStart >= 180) count += (d['RAZE'] || 0);
+                    });
+                    return count;
+                }
                 const [s, e] = parseRange(lbl);
                 return getCountForRange('RAZE', s, e);
             });
@@ -2091,10 +2117,15 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             if (charts.currentAge) charts.currentAge.destroy();
             
             const useLogScale = document.getElementById('logScale').checked;
+            const collapse180 = document.getElementById('collapseGlobal180') ? document.getElementById('collapseGlobal180').checked : false;
 
             const labels = [];
             const safeMaxAge = Math.max(globalMaxAge || 150, 150);
             for (let start = 0; start < safeMaxAge; start += binSize) {
+                if (collapse180 && start >= 180) {
+                    labels.push('180+');
+                    break;
+                }
                 labels.push(`${start}-${start + binSize}`);
             }
 
@@ -2112,6 +2143,14 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             }
 
             const data = labels.map(lbl => {
+                if (lbl === '180+') {
+                    let count = 0;
+                    rawData.forEach(d => {
+                        const [dStart, _] = parseRange(d.range);
+                        if (dStart >= 180) count += (d.count || 0);
+                    });
+                    return count;
+                }
                 const [s, e] = parseRange(lbl);
                 return getCountForRange(s, e);
             });
@@ -2165,11 +2204,11 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             ];
 
             const ageBins = [
-                { label: '0-25 years',   max: 25,   color: PLASMA_COLORS[0] }, 
-                { label: '26-50 years',  max: 50,   color: PLASMA_COLORS[2] }, 
-                { label: '51-75 years',  max: 75,   color: PLASMA_COLORS[4] }, 
-                { label: '76-100 years', max: 100,  color: PLASMA_COLORS[6] }, 
-                { label: '100+ years',   max: 9999, color: PLASMA_COLORS[9] } 
+                { label: '0-25 years',   max: 25,   color: '#ffffb3' }, 
+                { label: '26-50 years',  max: 50,   color: PLASMA_COLORS[8] }, 
+                { label: '51-75 years',  max: 75,   color: PLASMA_COLORS[6] }, 
+                { label: '76-100 years', max: 100,  color: PLASMA_COLORS[3] }, 
+                { label: '100+ years',   max: 9999, color: PLASMA_COLORS[0] } 
             ];
 
             let minYear = 9999;
@@ -2331,9 +2370,9 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             ];
             
             const plasmaColors = [
-                'rgba(13, 8, 135, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(139, 10, 165, 0.8)',
-                'rgba(185, 50, 137, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(244, 136, 73, 0.8)',
-                'rgba(254, 188, 43, 0.8)', 'rgba(240, 249, 33, 0.8)', 'rgba(240, 249, 33, 0.9)'
+                'rgba(255, 255, 180, 0.9)', 'rgba(240, 249, 33, 0.8)', 'rgba(254, 188, 43, 0.8)',
+                'rgba(244, 136, 73, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(185, 50, 137, 0.8)',
+                'rgba(139, 10, 165, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(13, 8, 135, 0.8)'
             ];
 
             const isArea = chartType === 'area';
@@ -2411,9 +2450,9 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             ];
             
             const plasmaColors = [
-                'rgba(13, 8, 135, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(139, 10, 165, 0.8)',
-                'rgba(185, 50, 137, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(244, 136, 73, 0.8)',
-                'rgba(254, 188, 43, 0.8)', 'rgba(240, 249, 33, 0.8)', 'rgba(240, 249, 33, 0.9)'
+                'rgba(255, 255, 180, 0.9)', 'rgba(240, 249, 33, 0.8)', 'rgba(254, 188, 43, 0.8)',
+                'rgba(244, 136, 73, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(185, 50, 137, 0.8)',
+                'rgba(139, 10, 165, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(13, 8, 135, 0.8)'
             ];
 
             const datasets = ageBins.map((bin, i) => ({
@@ -2459,9 +2498,9 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const years = Object.keys(eraData).sort();
             const eras = ['Pre-1900', '1900-1920', '1920-1940', '1940-1960', '1960-1980', '1980-2000', '2000-2010', '2010-2020', '2020+'];
             const eraColors = [
-                'rgba(13, 8, 135, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(139, 10, 165, 0.8)',
-                'rgba(185, 50, 137, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(244, 136, 73, 0.8)',
-                'rgba(254, 188, 43, 0.8)', 'rgba(240, 249, 33, 0.8)', 'rgba(250, 250, 100, 0.9)'
+                'rgba(255, 255, 180, 0.9)', 'rgba(240, 249, 33, 0.8)', 'rgba(254, 188, 43, 0.8)',
+                'rgba(244, 136, 73, 0.8)', 'rgba(219, 92, 104, 0.8)', 'rgba(185, 50, 137, 0.8)',
+                'rgba(139, 10, 165, 0.8)', 'rgba(84, 2, 163, 0.8)', 'rgba(13, 8, 135, 0.8)'
             ];
 
             const datasets = eras.map((era, i) => ({
@@ -3252,15 +3291,36 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
 
             zoningRazePointLayer = L.layerGroup(markers).addTo(zoningDeepDiveMap);
 
+            const collapseZone180 = document.getElementById('collapseZone180') ? document.getElementById('collapseZone180').checked : false;
+
+            function collapseDataArray(arr, threshold = 180) {
+                if (!collapseZone180 || !arr) return arr;
+                const result = [];
+                let plusCount = 0;
+                arr.forEach(item => {
+                    const [start, end] = parseRange(item.range);
+                    if (start >= threshold) {
+                        plusCount += item.count;
+                    } else {
+                        result.push(item);
+                    }
+                });
+                if (plusCount > 0) result.push({ range: threshold + '+', count: plusCount });
+                return result;
+            }
+
+            const demoCollapsed = collapseDataArray(d.demolished_age_distribution_10yr);
+            const curCollapsed = collapseDataArray(d.current_age_distribution_10yr || []);
+
             if (charts.zoningDemolished) charts.zoningDemolished.destroy();
             const ctxDem = document.getElementById('zoningDemolishedAgeChart').getContext('2d');
             charts.zoningDemolished = new Chart(ctxDem, {
                 type: 'bar',
                 data: {
-                    labels: d.demolished_age_distribution_10yr.map(x => x.range),
+                    labels: demoCollapsed.map(x => x.range),
                     datasets: [{
                         label: 'Demolished Count',
-                        data: d.demolished_age_distribution_10yr.map(x => x.count),
+                        data: demoCollapsed.map(x => x.count),
                         backgroundColor: colors.RAZE
                     }]
                 },
@@ -3300,10 +3360,10 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             charts.zoningCurrent = new Chart(ctxCur, {
                 type: 'bar',
                 data: {
-                    labels: (d.current_age_distribution_10yr || []).map(x => x.range),
+                    labels: curCollapsed.map(x => x.range),
                     datasets: [{
                         label: 'Building Count',
-                        data: (d.current_age_distribution_10yr || []).map(x => x.count),
+                        data: curCollapsed.map(x => x.count),
                         backgroundColor: '#3498db'
                     }]
                 },
