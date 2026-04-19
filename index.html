@@ -519,13 +519,75 @@
         from { opacity: 0; transform: translate(-50%, -45%); }
         to { opacity: 1; transform: translate(-50%, -50%); }
     }
-
+    /* Toggle Switch */
+    .toggle-wrapper {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: 20px;
+        vertical-align: middle;
+        background: #eef2f7;
+        padding: 6px 14px;
+        border-radius: 20px;
+        border: 1px solid #d0d7e2;
+    }
+    .toggle-wrapper .toggle-label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #495057;
+        user-select: none;
+        cursor: pointer;
+    }
+    .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .toggle-slider {
+        position: absolute;
+        inset: 0;
+        background: #ced4da;
+        border-radius: 24px;
+        cursor: pointer;
+        transition: background 0.25s;
+    }
+    .toggle-slider::before {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        transition: transform 0.25s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+        background: #3498db;
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+        transform: translateX(20px);
+    }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Boston Building Demolition Analysis</h1>
+            <h1 style="display:inline-block;">Boston Building Demolition Analysis</h1>
+            <div class="toggle-wrapper">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="includeUnknownToggle" checked onchange="onUnknownToggleChange()">
+                    <span class="toggle-slider"></span>
+                </label>
+                <label class="toggle-label" for="includeUnknownToggle">Fill empty Material / Foundation as "Unknown"</label>
+            </div>
             <p class="subtitle" id="subtitle">Data From NSI enhanced USA Structure(MA) dataset</p>
             
             <div class="methodology" style="background: #f8f9fa; padding: 25px; border-left: 5px solid #3498db; border-radius: 4px; margin-top: 20px;">
@@ -1050,6 +1112,7 @@
         let map = null;
         let mapMarkers = [];
         let mapData = null;
+        let allRazePoints = [];
         let zoningLayer = null;
         let globalZoningGeoJSON = null;
         let zoningDeepDiveMap = null;
@@ -1057,11 +1120,33 @@
         let zoningRazePointLayer = null;
         let currentCategory = 'material';
 
-        const categoryOrders = {
+        const categoryOrdersFull = {
             material: ['Wood', 'Masonry', 'Concrete', 'Steel', 'Unknown'],
             foundation: ['Slab', 'Basement', 'Crawl Space', 'Pile', 'Pier', 'Solid Wall', 'Unknown'],
             occupancy: ['Residential', 'Commercial', 'Industrial', 'Government', 'Education', 'Assembly', 'Utility and Misc', 'Unclassified', 'Unknown']
         };
+
+        function includeUnknown() {
+            const cb = document.getElementById('includeUnknownToggle');
+            return cb ? cb.checked : true;
+        }
+
+        function getData(key) {
+            if (!includeUnknown()) {
+                const alt = currentData[key + '_no_unknown'];
+                if (alt !== undefined) return alt;
+            }
+            return currentData[key];
+        }
+
+        function getActiveCategories(cat) {
+            const full = categoryOrdersFull[cat];
+            if (includeUnknown()) return full;
+            return full.filter(c => c !== 'Unknown');
+        }
+
+        // keep this reference so existing code that reads categoryOrders still works
+        const categoryOrders = categoryOrdersFull;
 
 
         const colors = {
@@ -1224,7 +1309,9 @@
 
             let filteredData = mapData.filter(d => {
                 const dtype = d.type || d.demolition_type;
-                return demolitionType === 'all' ? true : dtype === demolitionType;
+                if (demolitionType !== 'all' && dtype !== demolitionType) return false;
+                if (!includeUnknown() && isUnknownPoint(d)) return false;
+                return true;
             });
             
             filteredData.forEach(point => {
@@ -1286,11 +1373,9 @@
                 return;
             }
             const sortData = sortSource[demoType][binKey];
-
-            // --- NEW STEP: Calculate Grand Total for Denominator ---
             let grandTotal = 0;
-            // We iterate over displayData to sum up everything visible
-            Object.values(displayData).forEach(bins => {
+            Object.entries(displayData).forEach(([key, bins]) => {
+                if (!includeUnknown() && key === 'Unknown') return;
                 grandTotal += Object.values(bins).reduce((a, b) => a + b, 0);
             });
 
@@ -1299,9 +1384,10 @@
             Object.entries(sortData).forEach(([material, lifespans]) => {
                 sortTotals[material] = Object.values(lifespans).reduce((sum, val) => sum + val, 0);
             });
-            
+                        
             let sortedMaterials = Object.keys(sortTotals).sort((a, b) => sortTotals[b] - sortTotals[a]);
-            sortedMaterials = sortedMaterials.slice(0, 20); 
+            sortedMaterials = sortedMaterials.slice(0, 20);
+            if (!includeUnknown()) sortedMaterials = sortedMaterials.filter(m => m !== 'Unknown');
 
             const fixedOrder = ["Wood", "Masonry", "Concrete", "Steel"];
             sortedMaterials.sort((a, b) => {
@@ -1436,9 +1522,9 @@
             }
             const sortData = sortSource[demoType][binKey];
 
-            // --- NEW STEP: Calculate Grand Total ---
             let grandTotal = 0;
-            Object.values(displayData).forEach(bins => {
+            Object.entries(displayData).forEach(([key, bins]) => {
+                if (!includeUnknown() && key === 'Unknown') return;
                 grandTotal += Object.values(bins).reduce((a, b) => a + b, 0);
             });
 
@@ -1450,6 +1536,7 @@
             
             let sortedFoundations = Object.keys(sortTotals).sort((a, b) => sortTotals[b] - sortTotals[a]);
             sortedFoundations = sortedFoundations.slice(0, 20); 
+            if (!includeUnknown()) sortedFoundations = sortedFoundations.filter(f => f !== 'Unknown');
 
             sortedFoundations.sort((a, b) => {
                 const lowerA = a.toLowerCase();
@@ -1573,9 +1660,9 @@
             }
             const sortData = sortSource[demoType][binKey];
 
-            // Calculate Grand Total
             let grandTotal = 0;
-            Object.values(displayData).forEach(bins => {
+            Object.entries(displayData).forEach(([key, bins]) => {
+                if (!includeUnknown() && key === 'Unknown') return;
                 grandTotal += Object.values(bins).reduce((a, b) => a + b, 0);
             });
 
@@ -1587,6 +1674,7 @@
             
             let sortedOccs = Object.keys(sortTotals).sort((a, b) => sortTotals[b] - sortTotals[a]);
             sortedOccs = sortedOccs.slice(0, 20); 
+            if (!includeUnknown()) sortedOccs = sortedOccs.filter(o => o !== 'Unknown');
 
             sortedOccs.sort((a, b) => {
                 const lowerA = a.toLowerCase();
@@ -1694,14 +1782,16 @@
             const binSize = 10; 
 
             createLifespanChart(currentData, globalMaxAge);
-            const currentAgeData = currentData.current_age_distribution_10yr || [];
+            const currentAgeData = getData('current_age_distribution_10yr') || [];
             createCurrentAgeChart(currentAgeData, binSize, globalMaxAge);
             createStockAgeChart(currentData.yearly_stock_age_distribution);
-            createAgeDistributionChart(currentData.yearly_age_distribution);
-            createConstructionEraChart(currentData.yearly_construction_era);
-            createLifespanStripPlot(currentData.lifespan_by_year_boxplot);
+            createAgeDistributionChart(getData('yearly_age_distribution'));
+            createConstructionEraChart(getData('yearly_construction_era'));
+            createLifespanStripPlot(getData('lifespan_by_year_boxplot'));
         }
 
+
+        
         // Function to calculate average lifespan for selected demolition type
         function calculateAverageLifespan(demolitionType) {
             if (!currentData || !currentData.material_lifespan_demo_avg) return null;
@@ -1735,6 +1825,84 @@
             }
         }
 
+        function computeFilteredStats() {
+            if (!mapData || !currentData) return null;
+            // map_points = all RAZE with lifespan > 0
+            let points = mapData.filter(d => (d.type || d.demolition_type) === 'RAZE');
+            if (!includeUnknown()) {
+                points = points.filter(d => d.material !== 'Unknown' && d.foundation !== 'Unknown');
+            }
+            const closeCount = points.filter(d => d.status === 'Close').length;
+            const openCount = points.filter(d => d.status === 'Open').length;
+            const total = closeCount + openCount;
+            const avgLifespan = total > 0 ? points.reduce((s, d) => s + d.lifespan, 0) / total : 0;
+            return { total, closeCount, openCount, avgLifespan };
+        }
+
+        function isUnknownPoint(p) {
+            return p.material === 'Unknown' || p.foundation === 'Unknown';
+        }
+
+        function computeFilteredSummary() {
+            let pts = allRazePoints;
+            if (!includeUnknown()) {
+                pts = pts.filter(p => !isUnknownPoint(p));
+            }
+            const pos = pts.filter(p => p.lifespan > 0);
+            const zero = pts.filter(p => p.lifespan === 0);
+            const neg = pts.filter(p => p.lifespan < 0);
+
+            const count = (arr) => ({
+                total: arr.length,
+                close: arr.filter(p => p.status === 'Close').length,
+                open: arr.filter(p => p.status === 'Open').length
+            });
+
+            const posStats = count(pos);
+            const avgLifespan = posStats.total > 0
+                ? pos.reduce((s, p) => s + p.lifespan, 0) / posStats.total : 0;
+
+            return {
+                pos: posStats,
+                zero: count(zero),
+                neg: count(neg),
+                all: count(pts),
+                avgLifespan
+            };
+        }
+
+        function onUnknownToggleChange() {
+            if (!currentData) return;
+
+            // Re-render all charts (heatmaps, boxplots, scatter, etc.)
+            updateDashboard(currentData);
+            updateRazeLifespanSummary(currentData);
+            renderAgeByConstructionYearChart(currentData, 10);
+            updateZoningDeepDive();
+
+            // Override summary numbers from raw points
+            const fs = computeFilteredSummary();
+
+            document.getElementById('razeCount').textContent = fs.pos.total.toLocaleString();
+            document.getElementById('avgLifespan').textContent = fs.avgLifespan.toFixed(1) + ' yrs';
+
+            document.getElementById('razePosCount').innerText = fs.pos.total.toLocaleString();
+            document.getElementById('razePosClose').innerText = fs.pos.close.toLocaleString() + ' Close';
+            document.getElementById('razePosOpen').innerText = fs.pos.open.toLocaleString() + ' Open';
+
+            document.getElementById('razeZeroCount').innerText = fs.zero.total.toLocaleString();
+            document.getElementById('razeZeroClose').innerText = fs.zero.close.toLocaleString() + ' Close';
+            document.getElementById('razeZeroOpen').innerText = fs.zero.open.toLocaleString() + ' Open';
+
+            document.getElementById('razeNegCount').innerText = fs.neg.total.toLocaleString();
+            document.getElementById('razeNegClose').innerText = fs.neg.close.toLocaleString() + ' Close';
+            document.getElementById('razeNegOpen').innerText = fs.neg.open.toLocaleString() + ' Open';
+
+            document.getElementById('razeTotalCount').innerText = fs.all.total.toLocaleString();
+            document.getElementById('razeTotalClose').innerText = fs.all.close.toLocaleString() + ' Close';
+            document.getElementById('razeTotalOpen').innerText = fs.all.open.toLocaleString() + ' Open';
+        }
+
         async function loadDataFromJSON() {
             const loadingContainer = document.getElementById('loadingContainer');
             const errorContainer = document.getElementById('errorContainer');
@@ -1759,6 +1927,7 @@
                 currentData = data;
                 if (data.map_points) mapData = data.map_points;
                 else if (data.map_data) mapData = data.map_data;
+                if (data.all_raze_points) allRazePoints = data.all_raze_points;
 
                 loadingContainer.style.display = 'none';
                 mainContent.style.display = 'block';
@@ -1804,7 +1973,7 @@
             }
 
             updateVisualization();
-            createYearlyChart(data.yearly_stacked);
+            createYearlyChart(getData('yearly_stacked'));
             createScatterPlots(data);
             updateGFAScatter();
             updateStats('RAZE');
@@ -2056,7 +2225,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 labels.push(`${start}-${start + binSize}`);
             }
 
-            const rawData = data.lifespan_distribution || [];
+            const rawData = getData('lifespan_distribution') || [];
 
             function getCountForRange(type, start, end) {
                 let count = 0;
@@ -2257,7 +2426,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
         }
 
         function renderAgeByConstructionYearChart(data, binSize = 10) {
-            const rawData = data.construction_vs_age_data;
+            const rawData = getData('construction_vs_age_data');
             if (!rawData) return;
 
             const colorToggle = document.getElementById('showBuiltYearColors');
@@ -2737,6 +2906,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const groups = {};
             rawData.forEach(d => {
                 const cat = d[colorBy] || 'Unknown';
+                if (!includeUnknown() && cat === 'Unknown') return;
                 if (!groups[cat]) groups[cat] = [];
                 groups[cat].push({ x: d.gfa, y: d[yKey] });
             });
@@ -2867,7 +3037,9 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
         function createScatterPlots(data) {
             const points = (data.map_points || []).filter(p => {
                 const type = p.type || p.demolition_type;
-                return (type === 'RAZE' && p.lifespan > 0);
+                if (!(type === 'RAZE' && p.lifespan > 0)) return false;
+                if (!includeUnknown() && isUnknownPoint(p)) return false;
+                return true;
             });
 
             const constVsDemolData = points.map(p => ({
@@ -3261,11 +3433,20 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
 
             const d = currentData.zoning_district_stats[zoneName];
 
-            document.getElementById('zoneAvgLifespan').innerText = d.avg_raze_lifespan.toFixed(1) + ' yrs';
-            document.getElementById('zoneAvgAge').innerText = d.avg_current_age.toFixed(1) + ' yrs';
-            document.getElementById('zoneRazeCount').innerText = (d.count_raze || 0).toLocaleString();
-            document.getElementById('zoneTotalCount').innerText = (d.count_total || 0).toLocaleString();
+            let zoneRazePoints = d.positive_raze_points || [];
+            if (!includeUnknown()) {
+                zoneRazePoints = zoneRazePoints.filter(p => !isUnknownPoint(p));
+            }
+            const zoneAvgLife = zoneRazePoints.length > 0
+                ? zoneRazePoints.reduce((s, p) => s + p.lifespan, 0) / zoneRazePoints.length : 0;
 
+            document.getElementById('zoneAvgLifespan').innerText = zoneAvgLife.toFixed(1) + ' yrs';
+            const curAvgAge = includeUnknown() ? d.avg_current_age : (d.avg_current_age_no_unknown ?? d.avg_current_age);
+            const curTotal = includeUnknown() ? d.count_total : (d.count_total_no_unknown ?? d.count_total);
+            document.getElementById('zoneAvgAge').innerText = curAvgAge.toFixed(1) + ' yrs';
+            document.getElementById('zoneRazeCount').innerText = zoneRazePoints.length.toLocaleString();
+            document.getElementById('zoneTotalCount').innerText = curTotal.toLocaleString();
+            
             if (zoningDistrictLayer) zoningDeepDiveMap.removeLayer(zoningDistrictLayer);
             if (zoningRazePointLayer) zoningDeepDiveMap.removeLayer(zoningRazePointLayer);
 
@@ -3314,8 +3495,11 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
             const globalPopup = document.getElementById('global-popup');
             const globalPopupOverlay = document.getElementById('global-popup-overlay');
             const globalPopupContent = document.getElementById('global-popup-content');
-
-            const markers = d.positive_raze_points.map(p => {
+            let razePointsForMap = d.positive_raze_points || [];
+            if (!includeUnknown()) {
+                razePointsForMap = razePointsForMap.filter(p => !isUnknownPoint(p));
+            }
+            const markers = razePointsForMap.map(p => {
                 const rawFnd = p.foundation;
                 const fndLabel = foundationMap[rawFnd] ? foundationMap[rawFnd] : (rawFnd || 'Unknown');
 
@@ -3392,8 +3576,24 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 return result;
             }
 
-            const demoCollapsed = collapseDataArray(d.demolished_age_distribution_10yr);
-            const curCollapsed = collapseDataArray(d.current_age_distribution_10yr || []);
+            let demoHistSource;
+            if (includeUnknown()) {
+                demoHistSource = d.demolished_age_distribution_10yr;
+            } else {
+                // Recompute histogram from filtered points
+                const binW = 10;
+                const maxLife = zoneRazePoints.reduce((m, p) => Math.max(m, p.lifespan), 0);
+                demoHistSource = [];
+                for (let b = 0; b < maxLife + binW; b += binW) {
+                    const count = zoneRazePoints.filter(p => p.lifespan >= b && p.lifespan < b + binW).length;
+                    if (count > 0) demoHistSource.push({ range: `${b}-${b + binW}`, count });
+                }
+            }
+            const demoCollapsed = collapseDataArray(demoHistSource);
+            const curSource = includeUnknown()
+                ? d.current_age_distribution_10yr
+                : (d.current_age_distribution_10yr_no_unknown || d.current_age_distribution_10yr);
+            const curCollapsed = collapseDataArray(curSource || []);
 
         if (charts.zoningDemolished) charts.zoningDemolished.destroy();
             const ctxDem = document.getElementById('zoningDemolishedAgeChart').getContext('2d');
@@ -3570,7 +3770,7 @@ function renderGenericStackedChart(canvasId, category, demoType, binSize) {
                 currentStatsData = d.current_stats_occupancy;
             }
 
-            const allCategories = categoryOrders[currentCategory];
+            const allCategories = getActiveCategories(currentCategory);
             const demoCutoff = demoHeatmapData?.cutoff || 240;
             const currentCutoff = currentHeatmapData?.cutoff || 240;
             const binSizeNum = parseInt(binSize);

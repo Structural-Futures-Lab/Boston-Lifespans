@@ -151,6 +151,8 @@ def process_demolition_data(
     result = {}
 
     boston_df = df[df['Zoning_District'].notna()]
+    _known_mask = (boston_df['material_group'] != 'Unknown') & (boston_df['foundation_group'] != 'Unknown')
+    boston_df_known = boston_df[_known_mask]
 
     demo_avg = {}
     raze_sub = boston_df[boston_df['DEMOLITION_TYPE'] == 'RAZE']
@@ -209,6 +211,17 @@ def process_demolition_data(
                 'foundation': str(row.get('foundation_type', 'N/A'))
             })
     result['map_points'] = map_data
+
+    # All RAZE records (incl. zero/negative lifespan) for frontend Unknown filtering
+    all_raze_list = []
+    for _, row in raze_df.iterrows():
+        all_raze_list.append({
+            'lifespan': int(row['lifespan']),
+            'status': row['status_norm'],
+            'material': str(row['material_group']),
+            'foundation': str(row.get('foundation_type', 'N/A'))
+        })
+    result['all_raze_points'] = all_raze_list
 
     # --- C. Zoning District Stats (CORRECTED LOGIC) ---
     print("5. Aggregating Zoning District Stats (Using Full Building Inventory)...")
@@ -369,7 +382,14 @@ def process_demolition_data(
 
             'count_total': int(len(d_all_df)),
             'avg_current_age': float(d_all_df['current_age'].mean()) if len(d_all_df) > 0 else 0,
+            'count_total_no_unknown': int(len(d_all_df[(d_all_df['material_group'] != 'Unknown') & (d_all_df['foundation_group'] != 'Unknown')])),
+            'avg_current_age_no_unknown': float(
+                d_all_df[(d_all_df['material_group'] != 'Unknown') & (d_all_df['foundation_group'] != 'Unknown')]['current_age'].mean()
+            ) if len(d_all_df[(d_all_df['material_group'] != 'Unknown') & (d_all_df['foundation_group'] != 'Unknown')]) > 0 else 0,
             'current_age_distribution_10yr': make_hist(d_all_df['current_age']),
+            'current_age_distribution_10yr_no_unknown': make_hist(
+                d_all_df[(d_all_df['material_group'] != 'Unknown') & (d_all_df['foundation_group'] != 'Unknown')]['current_age']
+            ),
 
             'current_heatmap_material': make_all_bin_heatmaps(d_all_df, 'material_group', 'current_age'),
             'current_heatmap_foundation': make_all_bin_heatmaps(d_all_df, 'foundation_group', 'current_age'),
@@ -442,7 +462,14 @@ def process_demolition_data(
         'current_stats_occupancy': make_stats_data(all_current, 'occupancy_group', False),
         'count_total': int(len(all_current)),
         'avg_current_age': float(all_current['current_age'].mean()) if len(all_current) > 0 else 0,
+        'count_total_no_unknown': int(len(all_current[(all_current['material_group'] != 'Unknown') & (all_current['foundation_group'] != 'Unknown')])),
+        'avg_current_age_no_unknown': float(
+            all_current[(all_current['material_group'] != 'Unknown') & (all_current['foundation_group'] != 'Unknown')]['current_age'].mean()
+        ) if len(all_current[(all_current['material_group'] != 'Unknown') & (all_current['foundation_group'] != 'Unknown')]) > 0 else 0,
         'current_age_distribution_10yr': make_hist(all_current['current_age']),
+        'current_age_distribution_10yr_no_unknown': make_hist(
+            all_current[(all_current['material_group'] != 'Unknown') & (all_current['foundation_group'] != 'Unknown')]['current_age']
+        ),
     }
 
     result['zoning_district_stats'] = zoning_stats
@@ -566,6 +593,10 @@ def process_demolition_data(
     current_buildings = all_buildings_df[all_buildings_df['Zoning_District'].notna()]
 
     result['current_age_distribution_10yr'] = make_global_hist(current_buildings['current_age'], 10)
+    current_buildings_known = current_buildings[
+        (current_buildings['material_group'] != 'Unknown') & (current_buildings['foundation_group'] != 'Unknown')
+    ]
+    result['current_age_distribution_10yr_no_unknown'] = make_global_hist(current_buildings_known['current_age'], 10)
 
 
     yearly_age_dist = {}
@@ -695,6 +726,70 @@ def process_demolition_data(
             'RAZE_closed': int((sub_df['DEMOLITION_TYPE'] == 'RAZE').sum()),
         })
     result['lifespan_distribution'] = final_dist
+    pos_known = boston_df_known[boston_df_known['lifespan'] > 0]
+
+    # lifespan_distribution_no_unknown
+    dist_known = make_hist(pos_known['lifespan'], 10)
+    final_dist_known = []
+    for item in dist_known:
+        rng = item['range']
+        s, e = map(int, rng.split('-'))
+        sub = pos_known[(pos_known['lifespan'] >= s) & (pos_known['lifespan'] < e)]
+        final_dist_known.append({
+            'range': rng,
+            'RAZE': int((sub['DEMOLITION_TYPE'] == 'RAZE').sum()),
+            'RAZE_closed': int((sub['DEMOLITION_TYPE'] == 'RAZE').sum()),
+        })
+    result['lifespan_distribution_no_unknown'] = final_dist_known
+
+    # yearly_stacked_no_unknown
+    yearly_known = []
+    for year in sorted(boston_df_known['demolition_year'].dropna().unique()):
+        y_df = boston_df_known[boston_df_known['demolition_year'] == year]
+        raze_all = y_df[y_df['DEMOLITION_TYPE'] == 'RAZE']
+        yearly_known.append({
+            'year': int(year),
+            'RAZE': int((raze_all['lifespan'] > 0).sum()),
+            'demolished_and_replaced': int((raze_all['lifespan'] <= 0).sum()),
+            'RAZE_closed': int((raze_all['lifespan'] > 0).sum()),
+            'demolished_and_replaced_closed': int((raze_all['lifespan'] <= 0).sum()),
+        })
+    result['yearly_stacked_no_unknown'] = yearly_known
+
+    # yearly_age_distribution_no_unknown & yearly_construction_era_no_unknown
+    yearly_age_known = {}
+    yearly_era_known = {}
+    for year in all_years:
+        y_str = str(year)
+        year_df = boston_df_known[boston_df_known['demolition_year'] == year]
+        sub = year_df[year_df['lifespan'] > 0]
+
+        ac = {label: 0 for _, _, label in age_bins_def}
+        for s, e, label in age_bins_def:
+            ac[label] = int(len(sub[(sub['lifespan'] >= s) & (sub['lifespan'] < e)]))
+        yearly_age_known[y_str] = {'All': ac, 'RAZE': ac}
+
+        ec = {label: 0 for _, _, label in eras_def}
+        for s, e, label in eras_def:
+            ec[label] = int(len(sub[(sub['year_built'] >= s) & (sub['year_built'] < e)]))
+        yearly_era_known[y_str] = {'All': ec, 'RAZE': ec}
+
+    result['yearly_age_distribution_no_unknown'] = yearly_age_known
+    result['yearly_construction_era_no_unknown'] = yearly_era_known
+
+    # construction_vs_age_data_no_unknown
+    valid_known = boston_df_known[(boston_df_known['DEMOLITION_TYPE'] == 'RAZE') & (boston_df_known['lifespan'] > 0)]
+    result['construction_vs_age_data_no_unknown'] = valid_known[['year_built', 'lifespan']].dropna().to_dict(orient='records')
+
+    # lifespan_by_year_boxplot_no_unknown
+    strip_known = {'All': [], 'RAZE': []}
+    for year in all_years:
+        year_df = boston_df_known[boston_df_known['demolition_year'] == year]
+        pls = [int(x) for x in year_df['lifespan'].dropna().tolist() if x > 0]
+        entry = {'year': int(year), 'lifespans': pls}
+        strip_known['All'].append(entry)
+        strip_known['RAZE'].append(entry)
+    result['lifespan_by_year_boxplot_no_unknown'] = strip_known
     result['lifespan_distribution_closed'] = final_dist
 
     result['metadata'] = {
