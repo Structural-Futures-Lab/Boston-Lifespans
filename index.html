@@ -593,7 +593,7 @@
             <div class="methodology" style="background: #f8f9fa; padding: 25px; border-left: 5px solid #3498db; border-radius: 4px; margin-top: 20px;">
                 <h3 style="color: #2c3e50; margin-top: 0;">Data Source & Methodology</h3>
                 <p style="color: #555; margin-bottom: 15px;">
-                    This dashboard analyzes building demolition patterns in Boston, combining NSI structural data with Boston zoning regulations.
+                    This dashboard analyzes building demolition patterns in Boston using NSI-enhanced USA Structures data, construction year information from MassGIS Level 3 Parcels & NSI, Boston building demolition permits, and Boston zoning district boundaries.
                 </p>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
@@ -611,26 +611,40 @@
                                 <strong>Permit Matching Strategy:</strong> 
                                 Building Polygons were linked to clean Demolition Permits using a <strong>Nearest Neighbor Spatial Join</strong> with a <strong>5-meter search radius</strong> (EPSG:26986).
                                 
+
                                 <div style="background: #eef2f7; padding: 10px 12px; border-radius: 4px; margin: 8px 0; font-size: 0.9em; border-left: 3px solid #3498db; color: #555; line-height: 1.5;">
                                     <strong style="color: #2c3e50;">Matching Pipeline Stats:</strong>
-                                    
+                                
                                     <div style="margin-top: 5px;">
-                                        <span style="color: #2980b9;">●</span> <strong>Initial Spatial Matches:</strong> 667 (Raw)
+                                        <span style="color: #2980b9;">●</span> <strong>Raw RAZE Permits:</strong> 1,041
+                                    </div>
+                                
+                                    <div style="margin-top: 4px;">
+                                        <span style="color: #2980b9;">●</span> <strong>Deduplicated Demolition Permits:</strong> 667
+                                    </div>
+                                
+                                    <div style="margin-top: 4px;">
+                                        <span style="color: #2980b9;">●</span> <strong>Spatially Matched Building Records:</strong> 579
+                                    </div>
+                                
+                                    <div style="margin-top: 4px;">
+                                        <span style="color: #e74c3c;">●</span> <strong>Excluded:</strong> 22
                                         <div style="margin-left: 16px; font-size: 0.85em; color: #666; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 3px;">
-                                            ├─ <strong>Exact Matches:</strong> 455 (78.6%)<br>
-                                            └─ <strong>Buffer Matches (<5m):</strong> 124 (21.4%)
+                                            ├─ <strong>Missing Year Built:</strong> 21<br>
+                                            └─ <strong>No Matching Zoning District:</strong> 1
                                         </div>
                                     </div>
-
-                                    <div style="margin-top: 4px;">
-                                        <span style="color: #e74c3c;">●</span> <strong>Excluded:</strong> 70
-                                        <span style="font-size: 0.85em; color: #999;">(Outside Zoning Districts / Invalid Year Built, etc)</span>
-                                    </div>
-
+                                
                                     <div style="margin-top: 4px; border-top: 1px dashed #ccc; padding-top: 4px;">
-                                        <span style="color: #27ae60;">●</span> <strong>Final Analytical Dataset:</strong> <strong style="color: #27ae60;">509</strong> (Valid)
+                                        <span style="color: #27ae60;">●</span> <strong>Final Matched RAZE Records:</strong> <strong style="color: #27ae60;">557</strong>
+                                        <div style="margin-left: 16px; font-size: 0.85em; color: #666;">
+                                            ├─ Positive Lifespan: 361<br>
+                                            ├─ Zero Lifespan: 71<br>
+                                            └─ Negative Lifespan: 125
+                                        </div>
                                     </div>
                                 </div>
+
                             </li>
                             
                             <li style="margin-bottom: 8px;">
@@ -653,7 +667,7 @@
                             </li>
                             
                             <li style="margin-bottom: 8px;">
-                                <strong>Extra Cleaning:</strong> Cleaned buildings without <strong>built year</strong>, <strong>foundation & material</strong> type info, <strong>GFA =0</strong>, and ouliers with lifespans <strong>≥ 500 years</strong> were removed.
+                                <strong>Extra Cleaning:</strong> Buildings without a valid <strong>year built</strong> were removed. Demolition records with missing lifespans or lifespans <strong>≥ 500 years</strong> were excluded. Missing <strong>material and foundation</strong> types were retained as "Unknown". Records with missing or zero GFA were retained in the general inventory.
                             </li>
                         </ol>
                     </div>
